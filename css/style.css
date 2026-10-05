@@ -309,3 +309,43 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
   font-variant-numeric:tabular-nums;color:var(--text-3);min-width:44px;
   font-size:11.5px;
 }
+
+/* ============================================================
+   模式切换 + 批量队列
+   ============================================================ */
+.mode-switch{
+  display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;
+  background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:4px;margin-bottom:10px;
+}
+.queue-panel{display:flex;flex-direction:column;gap:8px;min-height:0;}
+.queue-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+.queue-progress{display:flex;flex-direction:column;gap:5px;}
+.qbar{height:6px;border-radius:3px;background:var(--bg-deep);overflow:hidden;}
+.qbar>span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s;}
+.qhint{font-size:12px;color:var(--text-2);}
+.queue-list{
+  list-style:none;margin:0;padding:0;overflow-y:auto;flex:1;min-height:80px;
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);
+}
+.queue-list li{
+  display:flex;align-items:center;gap:9px;padding:8px 10px;
+  border-bottom:1px solid var(--border);cursor:pointer;
+}
+.queue-list li:last-child{border-bottom:none;}
+.queue-list li:hover{background:var(--bg-deep);}
+.queue-list li.active{background:var(--accent-soft);}
+.queue-list li input[type=checkbox]{margin:0;accent-color:var(--accent);cursor:pointer;}
+.q-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;}
+.q-kind{font-size:11px;color:var(--text-3);text-transform:uppercase;}
+.q-status{font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.q-status.done{color:var(--ok);}
+.q-status.rendering{color:var(--accent);}
+.q-status.pending{color:var(--text-3);}
+.q-status.error{color:var(--danger);}
+.q-del{appearance:none;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:15px;padding:0 3px;line-height:1;}
+.q-del:hover{color:var(--danger);}
+.queue-empty{font-size:12.5px;color:var(--text-3);padding:12px;text-align:center;line-height:1.6;}
+.queue-empty[hidden]{display:none;}
+.queue-list:empty + .queue-empty{display:block;}
+#dropzone.over{outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--r-lg);}

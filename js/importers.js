@@ -218,8 +218,14 @@
 
         text = String(text || "").trim();
         if (!text) { ctx.toast(name + "：未识别到内容", "warn", 3600); continue; }
-        acc.push(text);
-        setStatus("已导入 " + name, "ok");
+        if (ctx.queueMode && ctx.queueMode()) {
+          /* 批量模式：逐个入队，转写交给队列 */
+          if (ctx.onItem) ctx.onItem(name, ext || "text", text);
+          setStatus("已加入队列：" + name, "ok");
+        } else {
+          acc.push(text);
+          setStatus("已导入 " + name, "ok");
+        }
       } catch (e) {
         ctx.toast(name + " 导入失败：" + (e && e.message || e), "err", 4600);
       }

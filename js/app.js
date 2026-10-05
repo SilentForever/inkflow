@@ -5,13 +5,16 @@
 
   /* ================= 字体注册（全部本地文件，零网络） ================= */
   var FONT_FILES = [
-    /* 中文手写（真实手写 / 书法体） */
+    /* 中文手写（含日文手写体；按数学符号覆盖率排序） */
+    { family: "Zen Kurenaido",      url: "fonts/ZenKurenaido-Regular.ttf",        weight: "400" },
+    { family: "MPLUSRounded1c",     url: "fonts/MPLUSRounded1c-Regular.ttf",      weight: "400" },
+    { family: "PottaOne",           url: "fonts/PottaOne-Regular.ttf",            weight: "400" },
+    { family: "ZenMaruGothic",      url: "fonts/ZenMaruGothic-Regular.ttf",       weight: "400" },
+    { family: "Yomogi",             url: "fonts/Yomogi-Regular.ttf",              weight: "400" },
     { family: "MaShanZheng",        url: "fonts/MaShanZheng-Regular.ttf",         weight: "400" },
     { family: "Klee One",           url: "fonts/KleeOne-Regular.ttf",             weight: "400" },
     { family: "LongCang",           url: "fonts/LongCang-Regular.ttf",            weight: "400" },
     { family: "ZhiMangXing",        url: "fonts/ZhiMangXing-Regular.ttf",         weight: "400" },
-    { family: "Zen Kurenaido",      url: "fonts/ZenKurenaido-Regular.ttf",        weight: "400" },
-    { family: "Yomogi",             url: "fonts/Yomogi-Regular.ttf",              weight: "400" },
     { family: "LiuJianMaoCao",      url: "fonts/LiuJianMaoCao-Regular.ttf",       weight: "400" },
     /* 英文手写 */
     { family: "Caveat",             url: "fonts/Caveat-Regular.woff2",            weight: "400" },
@@ -57,13 +60,14 @@
     source: "",
     pageSize: "a4",
     paper: "ruled",
-    fontKey: "mashanzheng",
+    fontKey: "zenkurenaido",
+    fontKeyCJK: "zenkurenaido",
+    fontKeyLat: "caveat",
     fontSize: 28,
     lineHeight: 1.9,
     letterSpacing: 0.3,
     hand: "normal",          // 工整 / 自然 / 随性
     handCustom: false,       // 高级设置里是否手动改过抖动
-    fontLang: "cjk",
     bold: false, italic: false, underline: false,
     textColor: "#1b2a5e", textScale: 1,
     autoRender: true,        // 关闭后需手动点「生成手写稿」
@@ -90,11 +94,12 @@
     var m = state.margin;
     return {
       pageSize: state.pageSize, paper: state.paper, fontKey: state.fontKey,
+      fontKeyCJK: state.fontKeyCJK, fontKeyLat: state.fontKeyLat,
       fontSize: state.fontSize, lineHeight: state.lineHeight, letterSpacing: state.letterSpacing,
       jitter: state.jitter, rotateDeg: state.rotateDeg, sizeVary: state.sizeVary,
       baselineDrift: state.baselineDrift, inkColor: state.inkColor, inkAmount: state.inkAmount,
       inkVary: state.inkVary, formulaHand: state.formulaHand, formulaScale: state.formulaScale, seed: state.seed,
-      hand: state.hand, handCustom: state.handCustom, fontLang: state.fontLang,
+      hand: state.hand, handCustom: state.handCustom,
       bold: state.bold, italic: state.italic, underline: state.underline,
       textColor: state.textColor, textScale: state.textScale,
       marginTop: m, marginBottom: Math.round(m * 0.9), marginLeft: m, marginRight: Math.round(m * 0.8),
@@ -272,9 +277,9 @@
   function initControls() {
     els.source = $("source");
 
-    /* ---------- 语言 + 字体（二级联动） ---------- */
-    function fillFonts(lang) {
-      var sel = $("fontKey");
+    /* ---------- 中英字体：分别选择 ---------- */
+    function fillFontSelect(selId, lang, current) {
+      var sel = $(selId);
       if (!sel) return;
       var list = global.InkRender.fontsByLang(lang);
       sel.innerHTML = "";
@@ -283,35 +288,24 @@
         o.value = list[i].key; o.textContent = list[i].label;
         sel.appendChild(o);
       }
-      var hint = $("fontHint");
-      if (hint) hint.textContent = (lang === "cjk") ? "中文手写体（毛笔 / 行草 / 手绘）" : "英文手写体（连笔 / 工整 / 随性）";
+      if (current) {
+        var has = false;
+        for (var k = 0; k < sel.options.length; k++) if (sel.options[k].value === current) has = true;
+        if (has) sel.value = current;
+      }
       return sel;
     }
-    function selectLang(lang, keepFont) {
-      state.fontLang = lang;
-      var sel = fillFonts(lang);
-      if (!keepFont || !sel || !sel.value) {
-        /* 切语言时挑一个该语言下的默认字体 */
-        var prefer = (lang === "cjk") ? "mashanzheng" : "caveat";
-        if (sel) {
-          var has = false;
-          for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === prefer) has = true;
-          sel.value = has ? prefer : (sel.options[0] && sel.options[0].value) || "";
-        }
-        state.fontKey = sel ? sel.value : state.fontKey;
-      }
-      var segs = document.querySelectorAll('[data-lang]');
-      for (var k = 0; k < segs.length; k++) segs[k].setAttribute("aria-pressed", segs[k].getAttribute("data-lang") === lang ? "true" : "false");
-      scheduleRender(true);
-    }
-    state.fontLang = "cjk";
-    selectLang(state.fontLang, true);
-    var selF = $("fontKey");
-    if (selF) selF.addEventListener("change", function () { state.fontKey = selF.value; scheduleRender(true); });
-    var langBtns = document.querySelectorAll('[data-lang]');
-    for (var lb = 0; lb < langBtns.length; lb++) {
-      (function (b) { b.addEventListener("click", function () { selectLang(b.getAttribute("data-lang"), false); }); })(langBtns[lb]);
-    }
+    state.fontKeyCJK = state.fontKeyCJK || "zenkurenaido";
+    state.fontKeyLat = state.fontKeyLat || "caveat";
+    fillFontSelect("fontCJK", "cjk", state.fontKeyCJK);
+    fillFontSelect("fontLat", "lat", state.fontKeyLat);
+    var selCJK = $("fontCJK"), selLat = $("fontLat");
+    if (selCJK) selCJK.addEventListener("change", function () {
+      state.fontKeyCJK = selCJK.value; state.fontKey = selCJK.value; scheduleRender(true);
+    });
+    if (selLat) selLat.addEventListener("change", function () {
+      state.fontKeyLat = selLat.value; scheduleRender(true);
+    });
 
     /* ---------- 手写程度：三档 ---------- */
     function applyHand(level) {
@@ -404,8 +398,8 @@
         await face.load();
         document.fonts.add(face);
         global.InkRender.addCustomFont("userfont", family, "自定义：" + f.name.slice(0, 18));
-        state.fontKey = "userfont";
-        var sel2 = $("fontKey");
+        state.fontKeyCJK = "userfont"; state.fontKey = "userfont";
+        var sel2 = $("fontCJK");
         if (sel2) {
           var opt = document.createElement("option");
           opt.value = "userfont";
@@ -428,7 +422,13 @@
     if (hclose) hclose.addEventListener("click", function () { var d = $("helpDlg"); if (d) d.close(); });
 
     /* ---------- 导入：文件 / 图片 / 粘贴识别 ---------- */
-    if (global.InkImport) global.InkImport.bind({ getSource: function () { return els.source; }, toast: toast, onDone: function () { updateCounts(); scheduleRender(true); } });
+    if (global.InkImport) global.InkImport.bind({
+      getSource: function () { return els.source; },
+      toast: toast,
+      queueMode: function () { return mode === "queue"; },
+      onItem: function (name, kind, text) { global.InkQueue.add(name, kind, text); },
+      onDone: function () { updateCounts(); if (mode === "queue") renderQueueList(); else scheduleRender(true); }
+    });
 
     /* ---------- 拖拽导入 ---------- */
     var drop = $("dropzone");
@@ -460,6 +460,114 @@
     var tcol = $("textColor");
     if (tcol) { tcol.value = state.textColor; tcol.addEventListener("input", function () { state.textColor = tcol.value; scheduleRender(); }); }
     bindRange("textScale", "textScale", function (v) { return v.toFixed(2) + "×"; });
+
+    /* ---------- 单篇 / 批量 模式切换 ---------- */
+    var mode = "single";
+    function setMode(m) {
+      mode = m;
+      var ms = $("modeSingle"), mq = $("modeQueue");
+      if (ms) ms.setAttribute("aria-pressed", m === "single" ? "true" : "false");
+      if (mq) mq.setAttribute("aria-pressed", m === "queue" ? "true" : "false");
+      var qp = $("queuePanel"), ew = document.querySelector(".editor-wrap"), ef = document.querySelector(".editor-foot");
+      if (qp) qp.hidden = (m !== "queue");
+      if (ew) ew.style.display = (m === "queue") ? "none" : "";
+      if (ef) ef.style.display = (m === "queue") ? "none" : "";
+      renderQueueList();
+      if (m === "queue") { var cur = global.InkQueue.current(); if (cur) showQueueItem(cur.id); }
+      else scheduleRender(true);
+    }
+    function showQueueItem(id) {
+      var it = global.InkQueue.select(id);
+      if (!it) return;
+      if (it.status === "done" && it.pages) { pages = it.pages; currentPage = 0; paintPage(0); }
+      else { pages = []; paintPage(0); }
+      renderQueueList();
+    }
+    function renderQueueList() {
+      var ul = $("queueList"); if (!ul) return;
+      var list = global.InkQueue.items();
+      var empty = $("queueEmpty");
+      if (empty) empty.hidden = list.length > 0;
+      ul.innerHTML = "";
+      var cur = global.InkQueue.current();
+      list.forEach(function (it) {
+        var li = document.createElement("li");
+        if (cur && cur.id === it.id) li.className = "active";
+        li.setAttribute("data-id", it.id);
+
+        var cb = document.createElement("input");
+        cb.type = "checkbox"; cb.checked = !!it.checked;
+        cb.addEventListener("click", function (e) { e.stopPropagation(); it.checked = cb.checked; syncQueueAll(); });
+        li.appendChild(cb);
+
+        var nm = document.createElement("span");
+        nm.className = "q-name"; nm.textContent = it.name;
+        nm.title = it.name + (it.error ? (" — " + it.error) : "");
+        li.appendChild(nm);
+
+        var kd = document.createElement("span");
+        kd.className = "q-kind"; kd.textContent = it.kind;
+        li.appendChild(kd);
+
+        var st = document.createElement("span");
+        st.className = "q-status " + it.status;
+        st.textContent = it.status === "done" ? ("✓ 已完成 " + (it.pages ? it.pages.length : 0) + " 页")
+          : it.status === "rendering" ? "⟳ 转写中"
+          : it.status === "error" ? ("✕ " + (it.error || "失败").slice(0, 14))
+          : "○ 待转写";
+        li.appendChild(st);
+
+        var del = document.createElement("button");
+        del.type = "button"; del.className = "q-del"; del.textContent = "✕";
+        del.title = "移除";
+        del.addEventListener("click", function (e) { e.stopPropagation(); global.InkQueue.remove(it.id); renderQueueList(); });
+        li.appendChild(del);
+
+        li.addEventListener("click", function () { showQueueItem(it.id); });
+        ul.appendChild(li);
+      });
+      syncQueueAll();
+    }
+    function syncQueueAll() {
+      var all = $("queueAll"); if (!all) return;
+      var list = global.InkQueue.items();
+      var ck = list.filter(function (x) { return x.checked; }).length;
+      all.checked = list.length > 0 && ck === list.length;
+      all.indeterminate = ck > 0 && ck < list.length;
+    }
+    if ($("modeSingle")) $("modeSingle").addEventListener("click", function () { setMode("single"); });
+    if ($("modeQueue")) $("modeQueue").addEventListener("click", function () { setMode("queue"); });
+
+    /* 队列按钮 */
+    if ($("queueRun")) $("queueRun").addEventListener("click", function () {
+      if (!global.InkQueue.items().length) return toast("队列为空，先导入文件", "warn");
+      global.InkQueue.runAll(toSettings);
+    });
+    if ($("queueStop")) $("queueStop").addEventListener("click", function () { global.InkQueue.stop(); toast("已请求停止", "warn", 1800); });
+    if ($("queueAll")) $("queueAll").addEventListener("change", function () {
+      var v = $("queueAll").checked;
+      global.InkQueue.items().forEach(function (x) { x.checked = v; });
+      renderQueueList();
+    });
+    if ($("queueClear")) $("queueClear").addEventListener("click", function () { global.InkQueue.clearAll(); renderQueueList(); });
+    if ($("queueExport")) $("queueExport").addEventListener("click", async function () {
+      var sel = global.InkQueue.checked();
+      if (!sel.length) return toast("没有可导出的已完成文档", "warn");
+      var all = global.InkQueue.allPagesOf(sel);
+      try {
+        setBusy(true);
+        await global.InkExport.exportPDF(all, "inkflow-batch-" + sel.length + ".pdf", { dpi: 150, quality: 0.92 });
+        toast("已导出 " + sel.length + " 篇（共 " + all.length + " 页）", "ok", 3200);
+      } catch (e) { toast("导出失败：" + e.message, "err"); }
+      finally { setBusy(false); }
+    });
+
+    /* 队列状态变化时重绘列表 */
+    if (global.InkQueue) global.InkQueue.bind({ toast: toast, onChange: function () {
+      if (mode === "queue") { renderQueueList(); var cur = global.InkQueue.current(); if (cur && cur.pages) { pages = cur.pages; currentPage = 0; paintPage(0); } }
+    }});
+
+    setMode("single");
 
     /* ---------- 生成按钮 + 自动重绘开关 ---------- */
     var regen = $("regenerate");

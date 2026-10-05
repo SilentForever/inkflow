@@ -4,26 +4,32 @@
   var U = global.InkUtil;
 
   /* 字体按语言分组，供界面做二级选择：中文 / 英文 */
+  /* 字体按语言分组，供界面做二级选择：中文 / 英文。
+     中文部分按「数学符号覆盖率」排序（实测 59 个符号）：
+       MPLUSRounded1c 55 · ZenKurenaido 52 · PottaOne 46 · ZenMaruGothic 40 · Yomogi 38 · 其余 33–34 */
   var FONTS = {
-    /* ---------- 中文手写（均为真实手写 / 书法体，OFL 免费可商用） ---------- */
-    mashanzheng:  { label: "马善政 毛笔楷书", css: '"MaShanZheng", "KaiTi", cursive',   cjk: true,  lang: "cjk" , family: "MaShanZheng"},
-    kleeone:      { label: "Klee One 楷书",   css: '"Klee One", "KaiTi", cursive',      cjk: true,  lang: "cjk" , family: "Klee One"},
-    longcang:     { label: "龙藏 行草",       css: '"LongCang", "KaiTi", cursive',      cjk: true,  lang: "cjk" , family: "LongCang"},
-    zhimangxing:  { label: "志莽行书",        css: '"ZhiMangXing", "KaiTi", cursive',   cjk: true,  lang: "cjk" , family: "ZhiMangXing"},
-    zenkurenaido:{ label: "Zen 圆珠笔手写",   css: '"Zen Kurenaido", "KaiTi", cursive', cjk: true,  lang: "cjk" , family: "Zen Kurenaido"},
-    yomogi:       { label: "Yomogi 随性手写", css: '"Yomogi", "KaiTi", cursive',        cjk: true,  lang: "cjk" , family: "Yomogi"},
-    liujianmaocao:{ label: "刘建毛草 狂草",   css: '"LiuJianMaoCao", "KaiTi", cursive', cjk: true,  lang: "cjk" , family: "LiuJianMaoCao"},
-    kai:          { label: "系统楷体",        css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk" , family: "KaiTi"},
+    /* ---------- 中文手写（含日文手写体，符号覆盖更好） ---------- */
+    zenkurenaido: { label: "Zen 圆珠笔手写 ★推荐", css: '"Zen Kurenaido", "KaiTi", cursive', cjk: true, lang: "cjk", family: "Zen Kurenaido" },
+    mplusround:   { label: "M PLUS 圆体（符号最全）", css: '"MPLUSRounded1c", "KaiTi", cursive', cjk: true, lang: "cjk", family: "MPLUSRounded1c" },
+    pottaone:     { label: "Potta 手绘圆体",   css: '"PottaOne", "KaiTi", cursive',        cjk: true, lang: "cjk", family: "PottaOne" },
+    zenmaru:      { label: "Zen 圆体",         css: '"ZenMaruGothic", "KaiTi", cursive',    cjk: true, lang: "cjk", family: "ZenMaruGothic" },
+    yomogi:       { label: "Yomogi 随性手写",  css: '"Yomogi", "KaiTi", cursive',           cjk: true, lang: "cjk", family: "Yomogi" },
+    mashanzheng:  { label: "马善政 毛笔楷书",  css: '"MaShanZheng", "KaiTi", cursive',      cjk: true, lang: "cjk", family: "MaShanZheng" },
+    kleeone:      { label: "Klee One 楷书",    css: '"Klee One", "KaiTi", cursive',         cjk: true, lang: "cjk", family: "Klee One" },
+    longcang:     { label: "龙藏 行草",        css: '"LongCang", "KaiTi", cursive',          cjk: true, lang: "cjk", family: "LongCang" },
+    zhimangxing:  { label: "志莽行书",         css: '"ZhiMangXing", "KaiTi", cursive',       cjk: true, lang: "cjk", family: "ZhiMangXing" },
+    liujianmaocao:{ label: "刘建毛草 狂草",    css: '"LiuJianMaoCao", "KaiTi", cursive',     cjk: true, lang: "cjk", family: "LiuJianMaoCao" },
+    kai:          { label: "系统楷体",         css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk", family: "KaiTi" },
     /* ---------- 英文手写 ---------- */
-    caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat" , family: "Caveat"},
-    patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat" , family: "Patrick Hand"},
-    indie:        { label: "Indie 随记",      css: '"Indie Flower", cursive',           cjk: false, lang: "lat" , family: "Indie Flower"},
-    kalam:        { label: "Kalam 洒脱",      css: '"Kalam", cursive',                  cjk: false, lang: "lat" , family: "Kalam"},
-    shadows:      { label: "Shadows 轻柔",    css: '"Shadows Into Light", cursive',     cjk: false, lang: "lat" , family: "Shadows Into Light"},
-    architects:   { label: "Architects 手绘", css: '"Architects Daughter", cursive',    cjk: false, lang: "lat" , family: "Architects Daughter"},
-    gloria:       { label: "Gloria 活泼",     css: '"Gloria Hallelujah", cursive',      cjk: false, lang: "lat" , family: "Gloria Hallelujah"},
-    reenie:       { label: "Reenie 细瘦",     css: '"Reenie Beanie", cursive',          cjk: false, lang: "lat" , family: "Reenie Beanie"},
-    rocksalt:     { label: "Rock Salt 粗犷",  css: '"Rock Salt", cursive',              cjk: false, lang: "lat" , family: "Rock Salt"}
+    caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat", family: "Caveat" },
+    patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat", family: "Patrick Hand" },
+    indie:        { label: "Indie 随记",      css: '"Indie Flower", cursive',           cjk: false, lang: "lat", family: "Indie Flower" },
+    kalam:        { label: "Kalam 洒脱",      css: '"Kalam", cursive',                  cjk: false, lang: "lat", family: "Kalam" },
+    shadows:      { label: "Shadows 轻柔",    css: '"Shadows Into Light", cursive',     cjk: false, lang: "lat", family: "Shadows Into Light" },
+    architects:   { label: "Architects 手绘", css: '"Architects Daughter", cursive',    cjk: false, lang: "lat", family: "Architects Daughter" },
+    gloria:       { label: "Gloria 活泼",     css: '"Gloria Hallelujah", cursive',      cjk: false, lang: "lat", family: "Gloria Hallelujah" },
+    reenie:       { label: "Reenie 细瘦",     css: '"Reenie Beanie", cursive',          cjk: false, lang: "lat", family: "Reenie Beanie" },
+    rocksalt:     { label: "Rock Salt 粗犷",  css: '"Rock Salt", cursive',              cjk: false, lang: "lat", family: "Rock Salt" }
   };
 
   /* 允许在运行时挂载用户自带的字体 */
@@ -52,6 +58,15 @@
   function measureStyled(text, fullFont) { var c = measurer(); c.font = fullFont; return c.measureText(text).width; }
 
   function fontCssOf(key) { return (FONTS[key] || FONTS.caveat).css; }
+
+  /* 中英文分别选字体：按字符判断该用哪个字体栈 */
+  function fontCssForChar(ch, s) {
+    var cjk = U.isCJK(ch);
+    var key = cjk ? (s.fontKeyCJK || s.fontKey) : (s.fontKeyLat || s.fontKey);
+    var f = FONTS[key];
+    if (!f) f = FONTS[cjk ? 'zenkurenaido' : 'caveat'];
+    return { css: f.css, cjk: cjk, key: key };
+  }
 
   /* 像 Word 一样：可加粗 / 斜体。返回带样式前缀的 font 简写片段。 */
   function fontStylePrefix(s) {
@@ -113,9 +128,9 @@
    * 公式里的数字与符号也要写成手写体。顺序：
    *   1) 当前正文字体  2) Zen Kurenaido（数学符号覆盖 66/66，专职兜底）  3) 其余中文手写体
    * 都不含该字符时，mathrender 会保留 MathJax 原字形（内容绝不丢失）。 */
-  var MATH_FALLBACK = ["Zen Kurenaido", "Klee One", "Yomogi", "LiuJianMaoCao", "MaShanZheng", "LongCang", "ZhiMangXing"];
+  var MATH_FALLBACK = ["MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
   function mathFontsOf(s) {
-    var cur = (FONTS[s.fontKey] || {}).family;
+    var cur = (FONTS[s.fontKeyCJK || s.fontKey] || {}).family;
     var list = [];
     if (cur) list.push(cur);
     for (var i = 0; i < MATH_FALLBACK.length; i++) if (MATH_FALLBACK[i] !== cur) list.push(MATH_FALLBACK[i]);
@@ -145,8 +160,11 @@
         var units = U.splitUnits(seg.value);
         for (var j = 0; j < units.length; j++) {
           var u = units[j];
-          var w = measureStyled(u.t, fc) + (u.space ? 0 : settings.letterSpacing);
-          tokens.push({ kind: u.space ? "space" : "text", text: u.t, w: w, h: px, size: px, font: fc, color: tc });
+          /* 逐单元选字体：CJK 用中文字体，拉丁用英文字体 */
+          var fs2 = fontCssForChar(u.t, settings);
+          var font = styledFont(px, fs2.css, settings);
+          var w = measureStyled(u.t, font) + (u.space ? 0 : settings.letterSpacing);
+          tokens.push({ kind: u.space ? "space" : "text", text: u.t, w: w, h: px, size: px, font: font, color: tc, cjk: fs2.cjk });
         }
       } else {
         var fpx = settings.formulaPx || px;
@@ -371,7 +389,7 @@
     /* 文字缩放（像 Word 的字号）只影响正文，不影响页面尺寸 */
     s.fontSize = Math.max(8, Math.round(s.fontSize * (s.textScale || 1)));
     s.lineHeightPx = s.fontSize * s.lineHeight;
-    var fscale = formulaScaleOf(s.fontKey) * (s.formulaScale || 1);
+    var fscale = formulaScaleOf(s.fontKeyCJK || s.fontKey) * (s.formulaScale || 1);
     s.formulaPx = s.fontSize * fscale;
 
     var lines = layoutBlocks(blocks, s);
@@ -554,7 +572,7 @@
     ctx.globalAlpha = U.clamp(s.inkAmount * 0.8, 0.1, 1);
     ctx.fillStyle = textColorOf(s);
     var fs = Math.max(11, s.fontSize * 0.42);
-    ctx.font = styledFont(fs, fontCssOf(s.fontKey), s);
+    ctx.font = styledFont(fs, fontCssOf(s.fontKeyCJK || s.fontKey), s);
     ctx.textBaseline = "alphabetic";
     if (s.showHeader && s.headerText) {
       ctx.textAlign = "left";

@@ -52,6 +52,11 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         </div>
       </div>
 
+      <div class="mode-switch" role="group" aria-label="输入模式">
+        <button type="button" class="seg-btn" id="modeSingle" aria-pressed="true">单篇输入</button>
+        <button type="button" class="seg-btn" id="modeQueue" aria-pressed="false">批量队列</button>
+      </div>
+
       <div class="import-panel">
         <div class="import-bar">
           <button class="btn sm primary" id="importFile" type="button">导入文件</button>
@@ -64,6 +69,24 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
       <div class="import-status" id="importStatus" hidden></div>
+
+      <!-- 批量队列 -->
+      <div class="queue-panel" id="queuePanel" hidden>
+        <div class="queue-bar">
+          <button class="btn sm primary" id="queueRun" type="button">全部转写</button>
+          <button class="btn sm" id="queueStop" type="button" disabled>停止</button>
+          <span class="import-sep" aria-hidden="true"></span>
+          <label class="auto-toggle"><input type="checkbox" id="queueAll"> 全选</label>
+          <button class="btn sm" id="queueExport" type="button">导出选中</button>
+          <button class="btn sm ghost" id="queueClear" type="button">清空</button>
+        </div>
+        <div class="queue-progress" id="queueProgress" hidden>
+          <div class="qbar"><span id="queueBarFill"></span></div>
+          <div class="qhint" id="queueHint">—</div>
+        </div>
+        <ul class="queue-list" id="queueList" aria-label="待转写文档"></ul>
+        <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
+      </div>
 
       <div class="editor-wrap">
         <label class="sr-only" for="source">文档内容</label>
@@ -82,21 +105,17 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       <div class="col-head"><h2>手写参数</h2></div>
       <div class="col-body">
 
-        <!-- 语言 -->
+        <!-- 字体：中英分别选择 -->
         <div class="field">
-          <label>文字语言</label>
-          <div class="seg" role="group" aria-label="文字语言">
-            <button type="button" class="seg-btn" data-lang="cjk" aria-pressed="true">中文</button>
-            <button type="button" class="seg-btn" data-lang="lat" aria-pressed="false">English</button>
-          </div>
-          <div class="hint">决定下方可选字体；中英混排时中文选中文体即可</div>
+          <label for="fontCJK">中文字体</label>
+          <select id="fontCJK"></select>
+          <div class="hint">中文与中文标点使用该字体</div>
         </div>
 
-        <!-- 字体 -->
         <div class="field">
-          <label for="fontKey">手写字体</label>
-          <select id="fontKey"></select>
-          <div class="hint" id="fontHint">中文手写体（毛笔 / 行草 / 手绘）</div>
+          <label for="fontLat">英文字体</label>
+          <select id="fontLat"></select>
+          <div class="hint">拉丁字母、数字使用该字体</div>
         </div>
 
         <!-- 文字样式：像 Word 一样 -->
@@ -325,6 +344,7 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
   <div class="dlg-foot"><button class="btn primary" id="helpClose" type="button">知道了</button></div>
 </dialog>
 
+<!-- ============ 脚本（全部本地，经典脚本以兼容 file://） ============ -->
 
 <script src="../vendor/jspdf.umd.min.js"></script>
 <script src="../vendor/mathjax/tex-svg.js"></script>
@@ -338,6 +358,7 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
 <script src="../js/renderer.js"></script>
 <script src="../js/exporter.js"></script>
 <script src="../js/importers.js"></script>
+<script src="../js/queue.js"></script>
 <script src="../js/samples.js"></script>
 <script src="../js/app.js"></script>
 <script>
@@ -355,41 +376,90 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
 
   window.__E2E = (async function(){
     await t("启动：应用初始化完成", async function(){
-      await waitFor(function(){ return window.InkApp && document.fonts.check('30px "MaShanZheng"'); }, 45000, "fonts");
+      await waitFor(function(){ return window.InkApp && document.fonts.check('30px "Zen Kurenaido"'); }, 45000, "fonts");
       await waitFor(function(){ return document.querySelector("canvas"); }, 45000, "first render");
       return "字体与首次渲染就绪";
     });
 
     await t("默认值：中文毛笔字体 / 28px / 行距1.9 / 手写度50% / 自然档", function(){
-      if ($("fontKey").value !== "mashanzheng") throw new Error("font=" + $("fontKey").value);
+      if ($("fontCJK").value !== "zenkurenaido") throw new Error("fontCJK=" + $("fontCJK").value);
+      if ($("fontLat").value !== "caveat") throw new Error("fontLat=" + $("fontLat").value);
       if (document.querySelector('[data-hand][aria-pressed="true"]').getAttribute("data-hand") !== "normal") throw new Error("hand not normal");
       if ($("fontSize").value !== "28") throw new Error("fontSize=" + $("fontSize").value);
       if ($("lineHeight").value !== "1.9") throw new Error("lineHeight=" + $("lineHeight").value);
       if ($("formulaHand").value !== "0.5") throw new Error("formulaHand=" + $("formulaHand").value);
-      return "mashanzheng / 28px / 1.9 / 50%";
+      return "zenkurenaido / caveat / 28px / 1.9 / 50%";
     });
 
     await t("徽标：公式引擎就绪 + 字体 17/17", function(){
       if ($("mathBadge").textContent.indexOf("就绪") < 0) throw new Error($("mathBadge").textContent);
-      if ($("fontBadge").textContent.indexOf("17/17") < 0) throw new Error($("fontBadge").textContent);
+      if (!/20\/20|20 \/ 20/.test($("fontBadge").textContent)) throw new Error($("fontBadge").textContent);
       return $("mathBadge").textContent + " · " + $("fontBadge").textContent;
     });
 
-    await t("字体下拉：中文/英文分组齐全", function(){
-      function opts(){ return [].map.call($("fontKey").options, function(o){ return o.value; }); }
-      function pick(lang){
-        var b = document.querySelector('[data-lang="' + lang + '"]'); b.click();
-        return opts();
-      }
-      var cjk = pick("cjk");
-      ["mashanzheng","kleeone","longcang","zhimangxing","zenkurenaido","yomogi","liujianmaocao","kai"].forEach(function(v){
+    await t("字体下拉：中文/英文分组齐全（双下拉）", function(){
+      function opts(id){ return [].map.call($(id).options, function(o){ return o.value; }); }
+      var cjk = opts("fontCJK"), lat = opts("fontLat");
+      ["zenkurenaido","mplusround","pottaone","zenmaru","yomogi","mashanzheng","kleeone","longcang","zhimangxing","liujianmaocao","kai"].forEach(function(v){
         if (cjk.indexOf(v) < 0) throw new Error("CJK missing " + v); });
-      var lat = pick("lat");
       ["caveat","patrick","indie","kalam","shadows","architects","gloria","reenie","rocksalt"].forEach(function(v){
         if (lat.indexOf(v) < 0) throw new Error("LAT missing " + v); });
-      if (cjk.length !== 8 || lat.length !== 9) throw new Error("counts " + cjk.length + "/" + lat.length);
-      pick("cjk");
+      if (cjk.length !== 11 || lat.length !== 9) throw new Error("counts " + cjk.length + "/" + lat.length);
       return "CJK " + cjk.length + " / LAT " + lat.length;
+    });
+
+    await t("字体：中英文分别生效（同一段混排）", async function(){
+      $("fontCJK").value = "zenkurenaido"; $("fontCJK").dispatchEvent(new Event("change", {bubbles:true}));
+      await sleep(1200);
+      var a = hashAll(document.querySelector("canvas"));
+      $("fontLat").value = "rocksalt"; $("fontLat").dispatchEvent(new Event("change", {bubbles:true}));
+      await sleep(1400);
+      var b = hashAll(document.querySelector("canvas"));
+      $("fontLat").value = "caveat"; $("fontLat").dispatchEvent(new Event("change", {bubbles:true}));
+      await sleep(1200);
+      if (a === b) throw new Error("换英文字体未改变输出");
+      return "中文不变、英文换字体 → 输出不同";
+    });
+
+    await t("模式：单篇 / 批量队列 可切换", async function(){
+      if ($("queuePanel").hidden !== true) throw new Error("初始应隐藏队列面板");
+      $("modeQueue").click();
+      await sleep(300);
+      if ($("queuePanel").hidden) throw new Error("切到队列后面板仍隐藏");
+      $("modeSingle").click();
+      await sleep(300);
+      if (!$("queuePanel").hidden) throw new Error("切回单篇后面板未隐藏");
+      return "切换正常";
+    });
+
+    await t("队列：多文档排队转写 + 缓存 + 批量导出可选", async function(){
+      $("modeQueue").click();
+      await sleep(200);
+      var Q = window.InkQueue;
+      Q.clearAll();
+      Q.add("几何.md", "text", "$\\because\\ \\angle A=45^\\circ$，$\\triangle ABC\\cong\\triangle DEF$。");
+      Q.add("例题.md", "text", "$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$");
+      Q.add("空.md", "text", "");
+      await sleep(200);
+      if (document.querySelectorAll("#queueList li").length !== 3) throw new Error("列表项数不对");
+      if (Q.counts().error !== 1) throw new Error("空文档应为 error，实际 " + JSON.stringify(Q.counts()));
+      await Q.runAll(function(){ return window.InkApp.toSettings(); });
+      await sleep(400);
+      var c = Q.counts();
+      if (c.done !== 2) throw new Error("应完成 2 篇，实际 " + JSON.stringify(c));
+      var st = [].map.call(document.querySelectorAll("#queueList .q-status"), function(n){ return n.className; });
+      if (!st.some(function(s){ return s.indexOf("done") >= 0; })) throw new Error("缺少完成徽标");
+      if (!st.some(function(s){ return s.indexOf("error") >= 0; })) throw new Error("缺少失败徽标");
+      /* 缓存：参数未变时二次转写不应重绘 */
+      var pagesRef = Q.items()[0].pages;
+      await Q.renderOne(Q.items()[0], window.InkApp.toSettings(), false);
+      if (Q.items()[0].pages !== pagesRef) throw new Error("缓存未命中，重复渲染了");
+      /* 勾选与批量导出集合 */
+      if (Q.checked().length !== 2) throw new Error("勾选数应为 2，实际 " + Q.checked().length);
+      if (Q.allPagesOf(Q.checked()).length < 2) throw new Error("合并页数不足");
+      $("modeSingle").click();
+      await sleep(200);
+      return "2 完成 / 1 失败 / 缓存命中 / 勾选 2";
     });
 
     await t("交互：输入触发重绘", async function(){
@@ -403,23 +473,28 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     });
 
     await t("交互：全部字体逐一渲染", async function(){
-      var vals = ["mashanzheng","kleeone","longcang","zhimangxing","zenkurenaido","yomogi","liujianmaocao","kai",
-                  "caveat","patrick","indie","kalam","shadows","architects","gloria","reenie","rocksalt"];
-      for (var i=0;i<vals.length;i++){
-        var lang = (i < 8) ? "cjk" : "lat";
-        document.querySelector('[data-lang="' + lang + '"]').click();
-        await sleep(80);
-        $("fontKey").value = vals[i]; $("fontKey").dispatchEvent(new Event("change", {bubbles:true}));
-        await sleep(420);
+      var cjk = [].map.call($("fontCJK").options, function(o){ return o.value; });
+      var lat = [].map.call($("fontLat").options, function(o){ return o.value; });
+      for (var i=0;i<cjk.length;i++){
+        $("fontCJK").value = cjk[i]; $("fontCJK").dispatchEvent(new Event("change", {bubbles:true}));
+        await sleep(380);
         var cv = document.querySelector("canvas");
-        if (!cv || inkOf(cv) < 15) throw new Error("blank for " + vals[i]);
+        if (!cv || inkOf(cv) < 15) throw new Error("blank for CJK " + cjk[i]);
       }
-      return vals.length + " 种全部成功";
+      for (var j=0;j<lat.length;j++){
+        $("fontLat").value = lat[j]; $("fontLat").dispatchEvent(new Event("change", {bubbles:true}));
+        await sleep(380);
+        var cv2 = document.querySelector("canvas");
+        if (!cv2 || inkOf(cv2) < 15) throw new Error("blank for LAT " + lat[j]);
+      }
+      $("fontCJK").value = "zenkurenaido"; $("fontCJK").dispatchEvent(new Event("change", {bubbles:true}));
+      $("fontLat").value = "caveat"; $("fontLat").dispatchEvent(new Event("change", {bubbles:true}));
+      await sleep(300);
+      return (cjk.length + lat.length) + " 种全部成功";
     });
 
     await t("交互：手写程度三档改变输出", async function(){
-      document.querySelector('[data-lang="lat"]').click(); await sleep(120);
-      $("fontKey").value = "caveat"; $("fontKey").dispatchEvent(new Event("change", {bubbles:true}));
+      $("fontLat").value = "caveat"; $("fontLat").dispatchEvent(new Event("change", {bubbles:true}));
       await sleep(600);
       document.querySelector('[data-hand="neat"]').click(); await sleep(1000);
       var a = hashAll(document.querySelector("canvas"));
@@ -455,8 +530,7 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     });
 
     await t("文字样式：加粗 / 斜体 / 下划线 改变输出", async function(){
-      document.querySelector('[data-lang="lat"]').click(); await sleep(150);
-      $("fontKey").value = "caveat"; $("fontKey").dispatchEvent(new Event("change", {bubbles:true}));
+      $("fontLat").value = "caveat"; $("fontLat").dispatchEvent(new Event("change", {bubbles:true}));
       await sleep(900);
       var a = hashAll(document.querySelector("canvas"));
       $("fmtBold").click(); await sleep(900);
@@ -562,18 +636,22 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     });
 
     await t("交互：自定义字体可注册并渲染", async function(){
-      // 用已加载的本地字体模拟"用户上传"，验证注册→可选→渲染链路
+      /* 用已加载的本地字体模拟"用户上传"，验证 注册 → 可选 → 渲染 链路 */
       var fam = "UserFontE2E";
       var face = new FontFace(fam, 'url("../fonts/ReenieBeanie-Regular.woff2")');
       await face.load(); document.fonts.add(face);
       window.InkRender.addCustomFont("userfont", fam, "自定义：E2E");
-      var sel = $("fontKey");
+      var sel = $("fontCJK");
       var opt = document.createElement("option"); opt.value = "userfont"; opt.textContent = "自定义：E2E";
       sel.appendChild(opt); sel.value = "userfont"; sel.dispatchEvent(new Event("change", {bubbles:true}));
       await sleep(1200);
       var cv = document.querySelector("canvas");
       if (!cv || inkOf(cv) < 15) throw new Error("custom font produced no output");
-      return "自定义字体渲染成功 ink=" + inkOf(cv);
+      var ink = inkOf(cv);
+      /* 还原，避免影响后续用例 */
+      sel.value = "zenkurenaido"; sel.dispatchEvent(new Event("change", {bubbles:true}));
+      await sleep(400);
+      return "自定义字体渲染成功 ink=" + ink;
     });
 
     await t("交互：纸张与字号", async function(){
