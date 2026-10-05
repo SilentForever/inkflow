@@ -163,7 +163,9 @@
         }
         if (m) {
           var tall = m.h > px * INLINE_MATH_TALL;
-          tokens.push({ kind: "math", latex: seg.value, w: m.w, h: m.h, depth: m.depth, svg: m.html, size: fpx, font: fc, tall: tall });
+          tokens.push({ kind: "math", latex: seg.value, w: m.w, h: m.h, depth: m.depth,
+            glyphs: m.glyphs, lines: m.lines, fallbackSvg: m.fallbackSvg,
+            size: fpx, font: fc, tall: tall });
         } else {
           var t2 = "$" + seg.value + "$";
           tokens.push({ kind: "text", text: t2, w: measureStyled(t2, fc), h: px, size: px, font: fc, color: tc, degraded: true });
@@ -267,7 +269,9 @@
           if (mmS && mmS.w < mm.w) { mm = mmS; ms = ms * scB; }
         }
         if (mm) {
-          pushLine([{ kind: "math", latex: b.latex, w: mm.w, h: mm.h, depth: mm.depth, svg: mm.html, size: ms, font: fontCssOf(s.fontKey) }], "mathblock", ms, "center", 0);
+          pushLine([{ kind: "math", latex: b.latex, w: mm.w, h: mm.h, depth: mm.depth,
+            glyphs: mm.glyphs, lines: mm.lines, fallbackSvg: mm.fallbackSvg,
+            size: ms, font: fontCssOf(s.fontKey) }], "mathblock", ms, "center", 0);
         } else {
           var raw = "$$" + b.latex + "$$";
           pushLine([{ kind: "text", text: raw, w: measureText(raw, s.fontSize, fontCssOf(s.fontKey)), h: s.fontSize, size: s.fontSize, font: fontCssOf(s.fontKey), degraded: true }], "para", s.fontSize, "left", 0);
@@ -331,7 +335,7 @@
       var t = lines[i].tokens;
       for (var j = 0; j < t.length; j++) {
         var tk = t[j];
-        if (tk.kind === "math" && !map.has(tk.svg)) map.set(tk.svg, { tok: tk, img: null, prep: null });
+        if (tk.kind === "math") map.set(tk, { tok: tk, img: null });
       }
     }
     return map;
@@ -339,12 +343,11 @@
 
   async function prepareMath(map, s) {
     var jobs = [];
-    map.forEach(function (rec, svg) {
+    map.forEach(function (rec) {
+      /* 只有「无法手写化」的字符才需要一张回退图片 */
+      if (!rec.tok.fallbackSvg) return;
       jobs.push((async function () {
-        var img = await global.InkMath.loadImage(svg);
-        rec.img = img;
-        if (!img) { rec.prep = null; return; }
-        rec.prep = global.InkMath.scribble(img, rec.tok.w, rec.tok.h, 0, 0, s.inkColor);
+        rec.img = await global.InkMath.loadImage(rec.tok.fallbackSvg);
       })());
     });
     if (jobs.length) await Promise.all(jobs);
@@ -447,14 +450,7 @@
           ctx.scale(sc, sc);
 
           if (tk.kind === "math") {
-            var rec = mathMap.get(tk.svg);
-            if (rec && rec.prep) {
-              /* 潦草化位图上下带留白 pad，需一并偏移以保持基线精确对位 */
-              var pad = rec.prep.padPx;
-              ctx.drawImage(rec.prep.canvas, -tk.w / 2, -(tk.h - tk.depth) - pad, tk.w, tk.h + pad * 2);
-            } else if (rec && rec.img) {
-              ctx.drawImage(rec.img, -tk.w / 2, -(tk.h - tk.depth), tk.w, tk.h);
-            }
+            drawMath(ctx, tk, mathMap, -tk.w / 2, -(tk.h - tk.depth));
           } else {
             ctx.font = tk.font || styledFont(tk.size, fontCssOf(s.fontKey), s);
             ctx.fillStyle = tk.color || textColorOf(s);
@@ -495,6 +491,61 @@
         lineCount: lines.length, mathCount: mathMap.size, pages: canvases.length
       }
     };
+  }
+
+  /* ---------- 公式绘制 ----------
+   * 字形用 canvas 画（canvas 能正常使用 Web 字体），
+   * 少数无法手写化的字符叠一张 MathJax 原字形图片。 */
+  function drawMath(ctx, tk, mathMap, ox, oy) {
+    var rec = mathMap ? mathMap.get(tk) : null;
+    var alpha0 = ctx.globalAlpha;
+    var color = ctx.fillStyle;
+
+    /* 1) 回退字形（保持原样） */
+    if (tk.fallbackSvg && rec && rec.img) {
+      ctx.drawImage(rec.img, ox, oy, tk.w, tk.h);
+    }
+
+    /* 2) 手绘字形 */
+    var gs = tk.glyphs || [];
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = color;
+    for (var i = 0; i < gs.length; i++) {
+      var g = gs[i];
+      ctx.save();
+      ctx.translate(ox + g.cx, oy + g.baseY);
+      if (g.rot) ctx.rotate(g.rot * Math.PI / 180);
+      ctx.font = g.size + 'px "' + g.fam + '", cursive';
+      ctx.fillText(g.ch, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    /* 3) 分数线 / 根号线：手画的曲线 */
+    var ls = tk.lines || [];
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineCap = "round";
+    for (var k = 0; k < ls.length; k++) {
+      var ln = ls[k];
+      ctx.lineWidth = Math.max(1, ln.w);
+      ctx.beginPath();
+      if (ln.type === "bezier" && ln.bend) {
+        ctx.moveTo(ox + ln.x0, oy + ln.y0);
+        ctx.bezierCurveTo(ox + ln.x0 + (ln.x1 - ln.x0) * 0.34, oy + ln.y0 + ln.bend,
+                          ox + ln.x0 + (ln.x1 - ln.x0) * 0.67, oy + ln.y0 - ln.bend,
+                          ox + ln.x1, oy + ln.y0);
+      } else {
+        ctx.moveTo(ox + ln.x0, oy + ln.y0);
+        ctx.lineTo(ox + ln.x1, oy + ln.y0);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = alpha0;
+    ctx.fillStyle = color;
   }
 
   function drawFurniture(ctx, s, pageIdx, total, rnd) {

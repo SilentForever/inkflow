@@ -111,7 +111,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     var fails = [];
     FORMULAS.forEach(function (f) {
       var r = window.InkMath.render(f[1], 30, '#1b2a5e');
-      if (!r || !r.html || r.w <= 0) fails.push(f[0] + ': ' + f[1]);
+      if (!r || r.w <= 0 || (!(r.glyphs && r.glyphs.length) && !r.fallbackSvg)) fails.push(f[0] + ': ' + f[1]);
     });
     assert(fails.length === 0, 'failed: ' + fails.join(' | '));
     return { pass: true, detail: '15/15 渲染成功，缓存 ' + window.InkMath.cacheSize() };
@@ -354,16 +354,17 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
 
   await t('手写化：字形级抖动随强度变化', function () {
     var tex = '\\int_0^1 x^2\\,dx=\\frac{1}{3}';
-    var a = window.InkMath.render(tex, 30, '#1b2a5e', 0, 12345);
-    var b = window.InkMath.render(tex, 30, '#1b2a5e', 0.5, 12345);
-    var c = window.InkMath.render(tex, 30, '#1b2a5e', 1.0, 12345);
+    var hf = window.InkRender.mathFontsOf({ fontKey: 'mashanzheng' });
+    var a = window.InkMath.render(tex, 30, '#1b2a5e', 0, 12345, { handFonts: hf });
+    var b = window.InkMath.render(tex, 30, '#1b2a5e', 0.5, 12345, { handFonts: hf });
+    var c = window.InkMath.render(tex, 30, '#1b2a5e', 1.0, 12345, { handFonts: hf });
     assert(a && b && c, 'render failed');
-    function glyphs(html) { return (html.match(/<use[^>]*transform=/g) || []).length; }
-    assert(glyphs(a.html) === 0, 'neat 档不应有字形抖动，实际 ' + glyphs(a.html));
-    assert(glyphs(b.html) > 0, 'natural 档应有字形抖动');
-    assert(glyphs(c.html) >= glyphs(b.html), 'casual 档字形数不应少于 natural');
-    assert(a.html !== b.html && b.html !== c.html, '不同强度应产生不同 SVG');
-    return { pass: true, detail: '抖动字形 ' + glyphs(a.html) + ' / ' + glyphs(b.html) + ' / ' + glyphs(c.html) };
+    assert(a.glyphs && a.glyphs.length > 0, 'no glyphs');
+    function rotSum(r) { var s = 0; r.glyphs.forEach(function (g) { s += Math.abs(g.rot || 0); }); return s; }
+    assert(rotSum(a) === 0, 'amount=0 不应有旋转抖动，实际 ' + rotSum(a));
+    assert(rotSum(b) > 0, 'amount=0.5 应有抖动');
+    assert(rotSum(c) > rotSum(b), 'amount=1 抖动应更强（' + rotSum(c) + ' vs ' + rotSum(b) + '）');
+    return { pass: true, detail: '抖动总量 ' + rotSum(a).toFixed(2) + ' / ' + rotSum(b).toFixed(2) + ' / ' + rotSum(c).toFixed(2) };
   });
 
   await t('公式手写化：数字与数学符号也用手写字体重绘', async function () {
@@ -374,28 +375,29 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     assert(fams.indexOf('Zen Kurenaido') > 0, '字体链应包含 Zen Kurenaido 兜底');
     var tex = '\\because \\angle ADC=45^\\circ,\\ \\triangle ADE\\cong\\triangle AEB,\\ \\sqrt{64}=\\frac{1}{2}\\times 4\\times 4=8';
     var r = window.InkMath.render(tex, 30, '#000', 0, 7, { handFonts: fams });
-    assert(r && r.glyphStat, '应产出字形统计');
-    assert(r.glyphStat.drawn > 0, '应有字形被手写重绘，实际 ' + r.glyphStat.drawn);
-    var texts = (r.html.match(/<text\b/g) || []).length;
-    assert(texts >= r.glyphStat.drawn, '重绘数量与 <text> 数量应一致');
+    assert(r && r.glyphs, '应产出手绘字形');
+    assert(r.glyphs.length > 0, '应有字形被手写重绘，实际 ' + r.glyphs.length);
+    var withFam = r.glyphs.filter(function (g) { return !!g.fam; }).length;
+    assert(withFam === r.glyphs.length, '每个字形都应指定手写字体');
     /* 数学符号必须真的走了手写字体 */
     var sym = '\\angle\\triangle\\cong\\because\\therefore\\sqrt{\\ }^\\circ';
     var r2 = window.InkMath.render('\\angle A\\triangle B\\cong C\\because D\\therefore E', 30, '#000', 0, 1, { handFonts: fams });
-    assert(r2.glyphStat.kept === 0, '∠△≅∵∴ 应全部手写化，未手写化 ' + r2.glyphStat.kept + ' 个');
-    assert((r2.glyphStat.byFont['composite'] || 0) >= 1, '≅ 应由组合字形合成，实际 composite=' + (r2.glyphStat.byFont['composite'] || 0));
-    return { pass: true, detail: '重绘 ' + r.glyphStat.drawn + ' 个字形（' + JSON.stringify(r.glyphStat.byFont) + '），符号 100% 手写化' };
+    assert(!r2.fallbackSvg, '∠△≅∵∴ 应全部手写化，不应有回退图片');
+    assert(r2.glyphs.length >= 5, '∠△≅∵∴ 手绘字形不足，实际 ' + r2.glyphs.length);
+    var fams2 = {}; r2.glyphs.forEach(function (g) { fams2[g.fam] = (fams2[g.fam] || 0) + 1; });
+    return { pass: true, detail: '手绘 ' + r2.glyphs.length + ' 个字形（' + JSON.stringify(fams2) + '），符号 100% 手写化' };
   });
 
   await t('公式手写化：无法手写化的字符回退到 MathJax 原字形', function () {
     var fams = window.InkRender.mathFontsOf({ fontKey: 'mashanzheng' });
     /* 箭头 ⇒ 在多数手写体中缺失，应回退而不是丢失 */
     var r = window.InkMath.render('a\\Rightarrow b', 30, '#000', 0, 1, { handFonts: fams });
-    assert(r && r.glyphStat, 'no stat');
-    assert(r.glyphStat.drawn + r.glyphStat.kept > 0, '字形总数不应为 0');
-    /* 关键：无论走哪条路，字符都不能丢 */
-    var contentOk = r.html.indexOf('>a<') >= 0 || r.html.indexOf('>b<') >= 0 || (r.html.match(/<text\b/g) || []).length >= 2;
-    assert(contentOk, '字符内容不应丢失');
-    return { pass: true, detail: '重绘 ' + r.glyphStat.drawn + ' / 回退 ' + r.glyphStat.kept };
+    assert(r, 'render failed');
+    var drawn = (r.glyphs || []).length;
+    assert(drawn > 0, '至少 a / b 应被手写化');
+    /* 关键：无论走哪条路，字符都不能丢 —— 回退时必须有 fallbackSvg */
+    if (r.fallbackSvg) assert(r.fallbackSvg.indexOf('<use') >= 0, '回退图片应含原字形');
+    return { pass: true, detail: '手绘 ' + drawn + ' 个 / 回退图片 ' + (r.fallbackSvg ? '有' : '无') };
   });
 
   await t('手写化：不改动公式外框尺寸', function () {
@@ -408,9 +410,11 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
 
   await t('手写化：同种子可复现（SVG 完全一致）', function () {
     var tex = '\\sum_{i=1}^{n} i^2';
-    var a = window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 777).html;
-    var b = window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 777).html;
-    var c = window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 778).html;
+    function sig(r) { return r.glyphs.map(function (g) { return [g.ch, g.cx.toFixed(3), g.baseY.toFixed(3), g.rot.toFixed(3)].join(','); }).join(';'); }
+    var hf2 = window.InkRender.mathFontsOf({ fontKey: 'mashanzheng' });
+    var a = sig(window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 777, { handFonts: hf2 }));
+    var b = sig(window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 777, { handFonts: hf2 }));
+    var c = sig(window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 778, { handFonts: hf2 }));
     assert(a === b, '同种子应完全一致');
     assert(a !== c, '不同种子应不同');
     return { pass: true, detail: '同种子一致 / 异种子不同' };

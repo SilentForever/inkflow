@@ -142,16 +142,20 @@
   }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
-  /* ---------- 1. LaTeX → SVG（含手写化） ----------
-   * 做法：先让浏览器把 MathJax 的 SVG 真实布局一遍，用
-   * getBoundingClientRect() 读出**每个字形的真实像素坐标与尺寸**
-   * （这是唯一可靠的方式——手写解析 transform 矩阵极易在 scale(1,-1)
-   *  这类嵌套下出错）。然后用**手写字体**在同样的位置重画字形。
-   * 这样公式的排版完全由 MathJax 决定，我们只换「笔迹」。 */
+  /* ---------- 1. LaTeX → 绘制指令 ----------
+   * 重要：SVG 以 <img> 载入时是隔离环境，**读不到 Web 字体**（浏览器会用系统
+   * 字体替换），所以不能把 <text> 放进 SVG。正确做法是：
+   *   - 用 MathJax SVG + getBoundingClientRect() 只取「位置与尺寸」；
+   *   - 字形交给调用方在 **canvas** 上绘制（canvas 可以正常使用 Web 字体）；
+   *   - 少数无法手写化的字符，保留 MathJax 原字形，作为一张 SVG 图片叠加。
+   * 返回：{ w, h, depth, glyphs[], lines[], fallbackSvg }
+   *   glyphs: { ch, fam, size, cx, baseY, rot }  坐标以「公式框左上角」为原点，y 向下
+   *   lines : { type, x0,y0,x1,y1, bend, w }     同上
+   */
   function render(latex, fontPx, color, amount, seed, opts) {
     var src = String(latex == null ? "" : latex);
     if (!src.trim()) return null;
-    var amt = (typeof amount === "number") ? amount : 0;
+    var amt = Math.max(0, Math.min(1, typeof amount === "number" ? amount : 0));
     var sd = (seed == null ? 0 : seed) >>> 0;
     opts = opts || {};
     var fams = opts.handFonts || [];
@@ -159,7 +163,6 @@
     if (cache.has(key)) return cache.get(key);
     if (!isAvailable()) return null;
     var out = null;
-    var host = null;
     try {
       var node = global.MathJax.tex2svg(src, { display: false, em: 16, ex: 8, containerWidth: 100000 });
       var svg0 = node.querySelector ? node.querySelector("svg") : (node.tagName === "svg" ? node : null);
@@ -169,148 +172,130 @@
       var exPx = fontPx * EX_RATIO;
       var wPx = ex.wEx * exPx, hPx = ex.hEx * exPx, dPx = ex.depthEx * exPx;
 
-      var clone = svg0.cloneNode(true);
-      clone.setAttribute("width", wPx);
-      clone.setAttribute("height", hPx);
-      clone.setAttribute("style", "color:" + (color || "#111") + ";display:block;");
-      if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      /* 先用「未手写化」的原始 SVG 量出每个字形的真实位置 */
+      var measured = measure(svg0, wPx, hPx, fams.length ? fams : []);
+      var glyphs = measured.glyphs, lines = measured.lines, kept = measured.kept;
 
-      var stat = null;
-      if (fams.length) {
-        stat = redraw(clone, fontPx, wPx, fams, sd, amt);
+      /* 手写化抖动 */
+      var rnd = new U.Rand(sd, "glyph");
+      for (var i = 0; i < glyphs.length; i++) {
+        var g = glyphs[i];
+        g.cx += rnd.jitter(g.size * 0.012 * amt);
+        g.baseY += rnd.jitter(g.size * 0.014 * amt);
+        g.rot = rnd.jitter(0.9 * amt);
+        g.size *= 1 + rnd.jitter(0.010 * amt);
       }
-      handify(clone, amt, sd, fontPx);
+      for (var k = 0; k < lines.length; k++) lines[k].bend *= amt;
 
-      var g = clone.querySelector("g");
-      if (g && !g.getAttribute("fill")) g.setAttribute("fill", "currentColor");
-      out = { html: clone.outerHTML, w: wPx, h: hPx, depth: dPx, glyphStat: stat };
+      /* 需要回退的字符 → 生成一张只含它们的 SVG 图片 */
+      var fallbackSvg = kept.length ? buildFallback(svg0, wPx, hPx, color, kept) : null;
+
+      out = { w: wPx, h: hPx, depth: dPx, glyphs: glyphs, lines: lines, fallbackSvg: fallbackSvg,
+              stat: { drawn: glyphs.length, kept: kept.length } };
       cache.set(key, out);
     } catch (e) { out = null; }
-    if (host && host.parentNode) host.parentNode.removeChild(host);
     return out;
   }
 
-  /* 用 getBoundingClientRect 读取真实几何，再用手写字体重画。
-   * 关键：不替换原 SVG，而是「隐藏已手写化的字形 + 追加一层手绘内容」，
-   *       这样无法手写化的字符仍由 MathJax 原字形兜底，内容绝不丢失。 */
-  function redraw(svg, fontPx, wPx, fams, seed, amount) {
-    var amp = Math.max(0, Math.min(1, typeof amount === "number" ? amount : 0));
+  /* 测量：把 SVG 插进隐藏容器让浏览器布局，再用 getBoundingClientRect 取真实几何 */
+  function measure(svg0, wPx, hPx, fams) {
     var host = document.createElement("div");
     host.setAttribute("aria-hidden", "true");
     host.style.cssText = "position:fixed;left:-20000px;top:0;width:0;height:0;overflow:hidden;";
-    host.appendChild(svg);
+    var live = svg0.cloneNode(true);
+    live.setAttribute("width", wPx);
+    live.setAttribute("height", hPx);
+    live.setAttribute("style", "display:block;");
+    if (!live.getAttribute("xmlns")) live.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    host.appendChild(live);
     document.body.appendChild(host);
-    var live = host.querySelector("svg");
     var sr = live.getBoundingClientRect();
-    var vb = (live.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
-    var vbx = vb[0] || 0, vby = vb[1] || 0, vbw = vb[2] || sr.width, vbh = vb[3] || sr.height;
-    var kx = vbw / (sr.width || 1), ky = vbh / (sr.height || 1);
-    /* 像素(屏幕)坐标 → SVG 用户坐标 */
-    function ux(px) { return vbx + px * kx; }
-    function uy(py) { return vby + py * ky; }
-
-    var rnd = new U.Rand(seed, "glyph");
     var mc = meas2();
     var REF = 100;
-    var parts = [], drawn = 0, kept = 0, byFont = {};
-    var toHide = [];
-    var thisFam = fams[0] || "sans-serif";
+    var glyphs = [], lines = [], kept = [];
 
-    /* ---------- 字形 ---------- */
+    function fit(glyph, fam, targetH) {
+      mc.font = REF + 'px "' + fam + '"';
+      var a = 0, d = 0;
+      try { var mt = mc.measureText(glyph); a = mt.actualBoundingBoxAscent || 0; d = mt.actualBoundingBoxDescent || 0; } catch (e) {}
+      var nat = a + d; if (!(nat > 0)) { nat = REF * 0.72; a = nat * 0.75; d = nat * 0.25; }
+      var size = targetH * REF / nat;
+      return { size: size, asc: a * size / REF };
+    }
+
     var uses = live.querySelectorAll("use");
     for (var i = 0; i < uses.length; i++) {
       var u = uses[i], b = u.getBoundingClientRect();
       if (b.width <= 0 || b.height <= 0) continue;
       var code = u.getAttribute("data-c");
       var ch = charOf(code);
-      var cxPx = b.left - sr.left, cyPx = b.top - sr.top;
-      var bwPx = b.width, bhPx = b.height;
-      var cxm = ux(cxPx + bwPx / 2), cym = uy(cyPx + bhPx / 2);
-
-      function sizeFor(glyph, targetH) {
-        mc.font = REF + "px \"" + thisFam + "\"";
-        var a = 0, d = 0;
-        try {
-          var mt = mc.measureText(glyph);
-          a = mt.actualBoundingBoxAscent || 0;
-          d = mt.actualBoundingBoxDescent || 0;
-        } catch (e) {}
-        var nat = a + d;
-        if (!(nat > 0)) nat = REF * 0.72;
-        return targetH * REF / nat;
-      }
-
-      /* 组合字形 */
+      var cxPx = b.left - sr.left + b.width / 2;
+      var topPx = b.top - sr.top;
       var comp = COMPOSITES[code];
       if (comp) {
-        var okc = true, sub = [];
+        var ok = true, sub = [];
         for (var ci = 0; ci < comp.length; ci++) {
           var pf = pickFont(fams, comp[ci].c);
-          if (!pf) { okc = false; break; }
-          thisFam = pf;
-          var psz = sizeFor(comp[ci].c, bhPx) * comp[ci].s;   // px
-          sub.push('<text x="' + cxm.toFixed(2) + '" y="' + (cym + comp[ci].dy * psz * ky).toFixed(2) +
-                   '" font-family="' + pf.replace(/"/g, "") + '" font-size="' + (psz * kx).toFixed(2) + '"' +
-                   ' text-anchor="middle" dominant-baseline="central" fill="currentColor">' + esc(comp[ci].c) + '</text>');
+          if (!pf) { ok = false; break; }
+          var f = fit(comp[ci].c, pf, b.height * comp[ci].s);
+          sub.push({ ch: comp[ci].c, fam: pf, size: f.size,
+                     cx: cxPx, baseY: topPx + f.asc + comp[ci].dy * f.size, rot: 0 });
         }
-        if (okc) { parts.push(sub.join("")); drawn++; byFont["composite"] = (byFont["composite"] || 0) + 1; toHide.push(u); continue; }
+        if (ok) { glyphs = glyphs.concat(sub); continue; }
       }
-
       var fam = ch ? pickFont(fams, ch) : null;
-      if (!fam) { kept++; continue; }        // 保留 MathJax 原字形
-      thisFam = fam;
-      drawn++; byFont[fam] = (byFont[fam] || 0) + 1;
-      var fsz = sizeFor(ch, bhPx);                       // 像素
-      var jx = rnd.jitter(fsz * 0.012 * amp), jy = rnd.jitter(fsz * 0.014 * amp);
-      var jr = rnd.jitter(0.9 * amp), jsc = 1 + rnd.jitter(0.010 * amp);
-      /* 注意：SVG 里的 font-size 是「用户单位」，必须按 viewBox 尺度换算 */
-      parts.push('<text x="' + (cxm + jx * kx).toFixed(2) + '" y="' + (cym + jy * ky).toFixed(2) + '"' +
-                 ' font-family="' + fam.replace(/"/g, "") + '" font-size="' + (fsz * jsc * kx).toFixed(2) + '"' +
-                 ' text-anchor="middle" dominant-baseline="central" fill="currentColor"' +
-                 (Math.abs(jr) > 0.01 ? ' transform="rotate(' + jr.toFixed(2) + ' ' + (cxm + jx * kx).toFixed(2) + ' ' + (cym + jy * ky).toFixed(2) + ')"' : '') +
-                 '>' + esc(ch) + '</text>');
-      toHide.push(u);
+      if (!fam) { kept.push(u); continue; }
+      var f2 = fit(ch, fam, b.height);
+      glyphs.push({ ch: ch, fam: fam, size: f2.size, cx: cxPx, baseY: topPx + f2.asc, rot: 0 });
     }
 
-    /* ---------- 分数线 / 根号线 / 表格线 ---------- */
     var rects = live.querySelectorAll("rect");
     for (var r = 0; r < rects.length; r++) {
       var rc = rects[r], rb = rc.getBoundingClientRect();
       if (rb.width <= 0) continue;
-      var x0 = ux(rb.left - sr.left), x1 = ux(rb.right - sr.left);
-      var yt = uy(rb.top - sr.top), yb2 = uy(rb.bottom - sr.top);
-      var mid = (yt + yb2) / 2, th = Math.max(0.7, Math.abs(yb2 - yt));
-      var bend = rnd.jitter(th * 0.45 * amp);
-      parts.push('<path d="M ' + x0.toFixed(2) + ' ' + mid.toFixed(2) +
-                 ' C ' + (x0 + (x1 - x0) * 0.34).toFixed(2) + ' ' + (mid + bend).toFixed(2) +
-                 ', ' + (x0 + (x1 - x0) * 0.67).toFixed(2) + ' ' + (mid - bend).toFixed(2) +
-                 ', ' + x1.toFixed(2) + ' ' + mid.toFixed(2) + '"' +
-                 ' fill="none" stroke="currentColor" stroke-width="' + th.toFixed(2) + '" stroke-linecap="round"/>');
-      toHide.push(rc);
+      var yt = rb.top - sr.top, yb = rb.bottom - sr.top;
+      lines.push({ type: "bezier", x0: rb.left - sr.left, x1: rb.right - sr.left,
+                   y0: (yt + yb) / 2, bend: Math.max(0.7, yb - yt) * 0.45,
+                   w: Math.max(0.7, yb - yt) });
     }
-    var lines = live.querySelectorAll("line");
-    for (var li = 0; li < lines.length; li++) {
-      var le = lines[li], lb = le.getBoundingClientRect();
-      var ly = uy(lb.top - sr.top + lb.height / 2);
-      var lth = Math.max(0.7, lb.height || 1);
-      parts.push('<path d="M ' + ux(lb.left - sr.left).toFixed(2) + ' ' + ly.toFixed(2) +
-                 ' L ' + ux(lb.right - sr.left).toFixed(2) + ' ' + ly.toFixed(2) + '"' +
-                 ' fill="none" stroke="currentColor" stroke-width="' + lth.toFixed(2) + '"/>');
-      toHide.push(le);
+    var lns = live.querySelectorAll("line");
+    for (var li = 0; li < lns.length; li++) {
+      var le = lns[li], lb = le.getBoundingClientRect();
+      lines.push({ type: "line", x0: lb.left - sr.left, x1: lb.right - sr.left,
+                   y0: lb.top - sr.top + lb.height / 2, bend: 0, w: Math.max(0.7, lb.height || 1) });
     }
 
-    /* ---------- 应用：隐藏已重绘的原元素 + 追加手绘层 ---------- */
-    for (var h = 0; h < toHide.length; h++) {
-      if (toHide[h].parentNode) toHide[h].parentNode.removeChild(toHide[h]);
-    }
-    var layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    layer.setAttribute("stroke-width", "0");
-    layer.innerHTML = parts.join("");
-    live.appendChild(layer);
+    document.body.removeChild(host);
+    return { glyphs: glyphs, lines: lines, kept: kept };
+  }
 
-    var stat = { drawn: drawn, kept: kept, byFont: byFont };
-    live.__inkStat = stat;
-    return stat;
+  /* 把「无法手写化」的字符单独生成一张 SVG（只含这些字形） */
+  function buildFallback(svg0, wPx, hPx, color, keptUses) {
+    var host = document.createElement("div");
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText = "position:fixed;left:-20000px;top:0;width:0;height:0;overflow:hidden;";
+    var live = svg0.cloneNode(true);
+    live.setAttribute("width", wPx);
+    live.setAttribute("height", hPx);
+    live.setAttribute("style", "color:" + (color || "#111") + ";display:block;");
+    if (!live.getAttribute("xmlns")) live.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    host.appendChild(live);
+    document.body.appendChild(host);
+
+    var keepCodes = {};
+    for (var i = 0; i < keptUses.length; i++) keepCodes[keptUses[i].getAttribute("data-c")] = true;
+    var all = live.querySelectorAll("use");
+    for (var k = 0; k < all.length; k++) {
+      if (!keepCodes[all[k].getAttribute("data-c")]) {
+        if (all[k].parentNode) all[k].parentNode.removeChild(all[k]);
+      }
+    }
+    /* 去掉空的分数线/根号线 */
+    var rts = live.querySelectorAll("rect, line, path");
+    for (var q = 0; q < rts.length; q++) if (rts[q].parentNode) rts[q].parentNode.removeChild(rts[q]);
+    var html = live.outerHTML;
+    document.body.removeChild(host);
+    return html;
   }
 
   /* ---------- 2. SVG → Image ---------- */
