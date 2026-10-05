@@ -36,12 +36,15 @@
         </div>
       </div>
 
-      <div class="import-bar">
-        <button class="btn sm primary" id="importFile" type="button">导入文件</button>
-        <button class="btn sm" id="importImage" type="button">识别图片</button>
-        <button class="btn sm ghost" id="importPaste" type="button">粘贴识别</button>
+      <div class="import-panel">
+        <div class="import-bar">
+          <button class="btn sm primary" id="importFile" type="button">导入文件</button>
+          <span class="import-sep" aria-hidden="true"></span>
+          <button class="btn sm" id="importImage" type="button">识别图片</button>
+          <button class="btn sm" id="importPaste" type="button">粘贴识别</button>
+        </div>
+        <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
       </div>
-      <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
       <div class="import-status" id="importStatus" hidden></div>
@@ -78,6 +81,27 @@
           <label for="fontKey">手写字体</label>
           <select id="fontKey"></select>
           <div class="hint" id="fontHint">中文手写体（毛笔 / 行草 / 手绘）</div>
+        </div>
+
+        <!-- 文字样式：像 Word 一样 -->
+        <div class="field">
+          <label>文字样式</label>
+          <div class="style-bar">
+            <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
+            <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
+            <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
+            <span class="fmt-sep" aria-hidden="true"></span>
+            <label class="fmt-color" title="字色">
+              <input type="color" id="textColor" value="#1b2a5e">
+              <span>字色</span>
+            </label>
+            <span class="fmt-sep" aria-hidden="true"></span>
+            <label class="fmt-slider" title="文字缩放">
+              <span>缩放</span>
+              <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
+              <output id="textScaleOut">1.00×</output>
+            </label>
+          </div>
         </div>
 
         <!-- 手写程度：三档 -->

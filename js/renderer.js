@@ -5,12 +5,14 @@
 
   /* 字体按语言分组，供界面做二级选择：中文 / 英文 */
   var FONTS = {
-    /* ---------- 中文手写 ---------- */
+    /* ---------- 中文手写（均为真实手写 / 书法体，OFL 免费可商用） ---------- */
     mashanzheng:  { label: "马善政 毛笔楷书", css: '"MaShanZheng", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
+    kleeone:      { label: "Klee One 楷书",   css: '"Klee One", "KaiTi", cursive',      cjk: true,  lang: "cjk" },
     longcang:     { label: "龙藏 行草",       css: '"LongCang", "KaiTi", cursive',      cjk: true,  lang: "cjk" },
+    zhimangxing:  { label: "志莽行书",        css: '"ZhiMangXing", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
+    zenkurenaido:{ label: "Zen 圆珠笔手写",   css: '"Zen Kurenaido", "KaiTi", cursive', cjk: true,  lang: "cjk" },
+    yomogi:       { label: "Yomogi 随性手写", css: '"Yomogi", "KaiTi", cursive',        cjk: true,  lang: "cjk" },
     liujianmaocao:{ label: "刘建毛草 狂草",   css: '"LiuJianMaoCao", "KaiTi", cursive', cjk: true,  lang: "cjk" },
-    zhimangxing:  { label: "志莽行书 洒脱",   css: '"ZhiMangXing", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
-    zcoolkuaile:  { label: "站酷快乐体 手绘", css: '"ZCOOLKuaiLe", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
     kai:          { label: "系统楷体",        css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk" },
     /* ---------- 英文手写 ---------- */
     caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat" },
@@ -46,8 +48,22 @@
   function measurer() { if (!_mc) _mc = document.createElement("canvas"); return _mc.getContext("2d"); }
   function fontStr(px, cssFont) { return px + "px " + cssFont; }
   function measureText(text, px, cssFont) { var c = measurer(); c.font = fontStr(px, cssFont); return c.measureText(text).width; }
+  /* 用「完整字体串」测量（已含 字号/样式），避免重复拼接前缀 */
+  function measureStyled(text, fullFont) { var c = measurer(); c.font = fullFont; return c.measureText(text).width; }
 
   function fontCssOf(key) { return (FONTS[key] || FONTS.caveat).css; }
+
+  /* 像 Word 一样：可加粗 / 斜体。返回带样式前缀的 font 简写片段。 */
+  function fontStylePrefix(s) {
+    var pre = "";
+    if (s && s.italic) pre += "italic ";
+    if (s && s.bold) pre += "700 ";
+    return pre;
+  }
+  /* 供 canvas 使用的完整字体串（含样式前缀） */
+  function styledFont(px, css, s) { return fontStylePrefix(s) + px + "px " + css; }
+  /* 文本颜色：默认墨色，可单独指定字色 */
+  function textColorOf(s) { return (s && s.textColor) || s.inkColor; }
 
   /* ---------- 公式视觉尺寸自适应 ----------
    * 不同字体的"视觉大小"差异很大（Caveat 的 x-height 只有 0.36em，
@@ -105,7 +121,9 @@
 
   /* ---------- 行内片段 → token ---------- */
   function inlineTokens(text, px, fontKey, settings) {
-    var fc = fontCssOf(fontKey);
+    var fcBase = fontCssOf(fontKey);
+    var fc = styledFont(px, fcBase, settings);   // 含 加粗/斜体 前缀
+    var tc = textColorOf(settings);
     var segs = global.InkParser.segment(text);
     var tokens = [];
     for (var i = 0; i < segs.length; i++) {
@@ -114,8 +132,8 @@
         var units = U.splitUnits(seg.value);
         for (var j = 0; j < units.length; j++) {
           var u = units[j];
-          var w = measureText(u.t, px, fc) + (u.space ? 0 : settings.letterSpacing);
-          tokens.push({ kind: u.space ? "space" : "text", text: u.t, w: w, h: px, size: px, font: fc });
+          var w = measureStyled(u.t, fc) + (u.space ? 0 : settings.letterSpacing);
+          tokens.push({ kind: u.space ? "space" : "text", text: u.t, w: w, h: px, size: px, font: fc, color: tc });
         }
       } else {
         var fpx = settings.formulaPx || px;
@@ -135,7 +153,7 @@
           tokens.push({ kind: "math", latex: seg.value, w: m.w, h: m.h, depth: m.depth, svg: m.html, size: fpx, font: fc, tall: tall });
         } else {
           var t2 = "$" + seg.value + "$";
-          tokens.push({ kind: "text", text: t2, w: measureText(t2, px, fc), h: px, size: px, font: fc, degraded: true });
+          tokens.push({ kind: "text", text: t2, w: measureStyled(t2, fc), h: px, size: px, font: fc, color: tc, degraded: true });
         }
       }
     }
@@ -220,7 +238,8 @@
         var cs = s.fontSize * 0.82;
         for (var c = 0; c < cl.length; c++) {
           var ct = cl[c] || " ";
-          pushLine([{ kind: "code", text: ct, w: measureText(ct, cs, MONO), h: cs, size: cs, font: MONO }], "code", cs, "left", 14);
+          var cfont = styledFont(cs, MONO, s);
+          pushLine([{ kind: "code", text: ct, w: measureStyled(ct, cfont), h: cs, size: cs, font: cfont, color: textColorOf(s) }], "code", cs, "left", 14);
         }
         continue;
       }
@@ -333,6 +352,8 @@
     }
     var ps = PAGE_SIZES[s.pageSize] || PAGE_SIZES.a4;
     s.pageWidth = ps.w; s.pageHeight = ps.h;
+    /* 文字缩放（像 Word 的字号）只影响正文，不影响页面尺寸 */
+    s.fontSize = Math.max(8, Math.round(s.fontSize * (s.textScale || 1)));
     s.lineHeightPx = s.fontSize * s.lineHeight;
     var fscale = formulaScaleOf(s.fontKey) * (s.formulaScale || 1);
     s.formulaPx = s.fontSize * fscale;
@@ -369,7 +390,7 @@
 
         if (ln.kind === "hr") {
           ctx.save();
-          ctx.strokeStyle = s.inkColor;
+          ctx.strokeStyle = textColorOf(s);
           ctx.globalAlpha = U.clamp(s.inkAmount * 0.7, 0.1, 1);
           ctx.lineWidth = Math.max(1, s.fontSize / 24);
           var hy = Math.round(y + lh * 0.5);
@@ -422,10 +443,24 @@
               ctx.drawImage(rec.img, -tk.w / 2, -(tk.h - tk.depth), tk.w, tk.h);
             }
           } else {
-            ctx.font = fontStr(tk.size, tk.font);
-            ctx.fillStyle = s.inkColor;
+            ctx.font = tk.font || styledFont(tk.size, fontCssOf(s.fontKey), s);
+            ctx.fillStyle = tk.color || textColorOf(s);
             ctx.textAlign = "left";
             ctx.fillText(tk.text, -tk.w / 2, 0);
+            /* 下划线：像 Word 一样 */
+            if (s.underline) {
+              var uw = tk.w - (s.letterSpacing || 0);
+              var uy = Math.round(tk.size * 0.16);
+              ctx.save();
+              ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.85;
+              ctx.strokeStyle = tk.color || textColorOf(s);
+              ctx.lineWidth = Math.max(1, tk.size / 22);
+              ctx.beginPath();
+              ctx.moveTo(-uw / 2 + rnd.jitter(0.4), uy);
+              ctx.lineTo(uw / 2 + rnd.jitter(0.4), uy + rnd.jitter(0.5));
+              ctx.stroke();
+              ctx.restore();
+            }
           }
           ctx.restore();
           x += tk.w;
@@ -453,9 +488,9 @@
     if (!s.showHeader && !s.showFooter) return;
     ctx.save();
     ctx.globalAlpha = U.clamp(s.inkAmount * 0.8, 0.1, 1);
-    ctx.fillStyle = s.inkColor;
+    ctx.fillStyle = textColorOf(s);
     var fs = Math.max(11, s.fontSize * 0.42);
-    ctx.font = fontStr(fs, fontCssOf(s.fontKey));
+    ctx.font = styledFont(fs, fontCssOf(s.fontKey), s);
     ctx.textBaseline = "alphabetic";
     if (s.showHeader && s.headerText) {
       ctx.textAlign = "left";

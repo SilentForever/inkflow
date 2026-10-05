@@ -53,7 +53,11 @@
       var dy = rnd.jitter(amp * fontPx * 0.090) * pxToUnit;
       var rot = rnd.jitter(amp * 7.0);
       var sc = 1 + rnd.jitter(amp * 0.070);
-      u.setAttribute("transform",
+      /* 关键：必须「追加」到 MathJax 原有的 transform 之后，不能覆盖。
+         覆盖会丢掉 MathJax 的字形定位（如 translate(500,0)），
+         导致同一个数字的两位叠在一起（16 显示成 6）。 */
+      var prev = u.getAttribute("transform") || "";
+      u.setAttribute("transform", (prev ? prev + " " : "") +
         "translate(" + dx.toFixed(2) + "," + dy.toFixed(2) + ") rotate(" + rot.toFixed(2) + ") scale(" + sc.toFixed(3) + ")");
     }
     /* 2) 分数线 / 根号线：轻微起伏，像手画的横线 */
@@ -62,7 +66,9 @@
       var r = rects[k];
       var dy2 = rnd.jitter(amp * fontPx * 0.018) * pxToUnit;
       var rot2 = rnd.jitter(amp * 1.1);
-      r.setAttribute("transform", "translate(0," + dy2.toFixed(2) + ") rotate(" + rot2.toFixed(2) + ")");
+      var prevR = r.getAttribute("transform") || "";
+      r.setAttribute("transform", (prevR ? prevR + " " : "") +
+        "translate(0," + dy2.toFixed(2) + ") rotate(" + rot2.toFixed(2) + ")");
     }
     return svg;
   }

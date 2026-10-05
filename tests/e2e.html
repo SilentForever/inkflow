@@ -52,12 +52,15 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         </div>
       </div>
 
-      <div class="import-bar">
-        <button class="btn sm primary" id="importFile" type="button">导入文件</button>
-        <button class="btn sm" id="importImage" type="button">识别图片</button>
-        <button class="btn sm ghost" id="importPaste" type="button">粘贴识别</button>
+      <div class="import-panel">
+        <div class="import-bar">
+          <button class="btn sm primary" id="importFile" type="button">导入文件</button>
+          <span class="import-sep" aria-hidden="true"></span>
+          <button class="btn sm" id="importImage" type="button">识别图片</button>
+          <button class="btn sm" id="importPaste" type="button">粘贴识别</button>
+        </div>
+        <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
       </div>
-      <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
       <div class="import-status" id="importStatus" hidden></div>
@@ -94,6 +97,27 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
           <label for="fontKey">手写字体</label>
           <select id="fontKey"></select>
           <div class="hint" id="fontHint">中文手写体（毛笔 / 行草 / 手绘）</div>
+        </div>
+
+        <!-- 文字样式：像 Word 一样 -->
+        <div class="field">
+          <label>文字样式</label>
+          <div class="style-bar">
+            <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
+            <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
+            <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
+            <span class="fmt-sep" aria-hidden="true"></span>
+            <label class="fmt-color" title="字色">
+              <input type="color" id="textColor" value="#1b2a5e">
+              <span>字色</span>
+            </label>
+            <span class="fmt-sep" aria-hidden="true"></span>
+            <label class="fmt-slider" title="文字缩放">
+              <span>缩放</span>
+              <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
+              <output id="textScaleOut">1.00×</output>
+            </label>
+          </div>
         </div>
 
         <!-- 手写程度：三档 -->
@@ -345,9 +369,9 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "mashanzheng / 28px / 1.9 / 50%";
     });
 
-    await t("徽标：公式引擎就绪 + 字体 15/15", function(){
+    await t("徽标：公式引擎就绪 + 字体 17/17", function(){
       if ($("mathBadge").textContent.indexOf("就绪") < 0) throw new Error($("mathBadge").textContent);
-      if ($("fontBadge").textContent.indexOf("15/15") < 0) throw new Error($("fontBadge").textContent);
+      if ($("fontBadge").textContent.indexOf("17/17") < 0) throw new Error($("fontBadge").textContent);
       return $("mathBadge").textContent + " · " + $("fontBadge").textContent;
     });
 
@@ -358,12 +382,12 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         return opts();
       }
       var cjk = pick("cjk");
-      ["mashanzheng","longcang","liujianmaocao","zhimangxing","zcoolkuaile","kai"].forEach(function(v){
+      ["mashanzheng","kleeone","longcang","zhimangxing","zenkurenaido","yomogi","liujianmaocao","kai"].forEach(function(v){
         if (cjk.indexOf(v) < 0) throw new Error("CJK missing " + v); });
       var lat = pick("lat");
       ["caveat","patrick","indie","kalam","shadows","architects","gloria","reenie","rocksalt"].forEach(function(v){
         if (lat.indexOf(v) < 0) throw new Error("LAT missing " + v); });
-      if (cjk.length !== 6 || lat.length !== 9) throw new Error("counts " + cjk.length + "/" + lat.length);
+      if (cjk.length !== 8 || lat.length !== 9) throw new Error("counts " + cjk.length + "/" + lat.length);
       pick("cjk");
       return "CJK " + cjk.length + " / LAT " + lat.length;
     });
@@ -379,10 +403,10 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     });
 
     await t("交互：全部字体逐一渲染", async function(){
-      var vals = ["mashanzheng","longcang","liujianmaocao","zhimangxing","zcoolkuaile","kai",
+      var vals = ["mashanzheng","kleeone","longcang","zhimangxing","zenkurenaido","yomogi","liujianmaocao","kai",
                   "caveat","patrick","indie","kalam","shadows","architects","gloria","reenie","rocksalt"];
       for (var i=0;i<vals.length;i++){
-        var lang = (i < 6) ? "cjk" : "lat";
+        var lang = (i < 8) ? "cjk" : "lat";
         document.querySelector('[data-lang="' + lang + '"]').click();
         await sleep(80);
         $("fontKey").value = vals[i]; $("fontKey").dispatchEvent(new Event("change", {bubbles:true}));
@@ -428,6 +452,44 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         throw new Error("预览列头部溢出 " + head.scrollWidth + " > " + head.clientWidth);
       }
       return "头部宽 " + head.clientWidth + "，内容宽 " + head.scrollWidth;
+    });
+
+    await t("文字样式：加粗 / 斜体 / 下划线 改变输出", async function(){
+      document.querySelector('[data-lang="lat"]').click(); await sleep(150);
+      $("fontKey").value = "caveat"; $("fontKey").dispatchEvent(new Event("change", {bubbles:true}));
+      await sleep(900);
+      var a = hashAll(document.querySelector("canvas"));
+      $("fmtBold").click(); await sleep(900);
+      var b = hashAll(document.querySelector("canvas"));
+      if (a === b) throw new Error("bold had no effect");
+      if ($("fmtBold").getAttribute("aria-pressed") !== "true") throw new Error("bold aria-pressed 未更新");
+      $("fmtBold").click(); await sleep(700);
+      $("fmtItalic").click(); await sleep(900);
+      var c = hashAll(document.querySelector("canvas"));
+      if (b === c) throw new Error("italic had no effect");
+      $("fmtItalic").click(); await sleep(700);
+      $("fmtUnder").click(); await sleep(900);
+      var d = hashAll(document.querySelector("canvas"));
+      if (c === d) throw new Error("underline had no effect");
+      $("fmtUnder").click(); await sleep(700);
+      return "加粗 / 斜体 / 下划线 均生效";
+    });
+
+    await t("文字样式：字色与缩放生效", async function(){
+      var a = hashAll(document.querySelector("canvas"));
+      $("textColor").value = "#c0392b"; $("textColor").dispatchEvent(new Event("input", {bubbles:true}));
+      await sleep(900);
+      var b = hashAll(document.querySelector("canvas"));
+      if (a === b) throw new Error("text color had no effect");
+      $("textScale").value = "1.3"; $("textScale").dispatchEvent(new Event("input", {bubbles:true}));
+      await sleep(900);
+      var c = hashAll(document.querySelector("canvas"));
+      if (b === c) throw new Error("text scale had no effect");
+      if ($("textScaleOut").textContent.indexOf("1.30") < 0) throw new Error("out=" + $("textScaleOut").textContent);
+      $("textColor").value = "#1b2a5e"; $("textColor").dispatchEvent(new Event("input", {bubbles:true}));
+      $("textScale").value = "1"; $("textScale").dispatchEvent(new Event("input", {bubbles:true}));
+      await sleep(900);
+      return "字色 / 缩放 均生效";
     });
 
     await t("交互：生成按钮存在且可触发重绘", async function(){

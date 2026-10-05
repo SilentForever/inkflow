@@ -5,6 +5,15 @@
 
   /* ================= 字体注册（全部本地文件，零网络） ================= */
   var FONT_FILES = [
+    /* 中文手写（真实手写 / 书法体） */
+    { family: "MaShanZheng",        url: "fonts/MaShanZheng-Regular.ttf",         weight: "400" },
+    { family: "Klee One",           url: "fonts/KleeOne-Regular.ttf",             weight: "400" },
+    { family: "LongCang",           url: "fonts/LongCang-Regular.ttf",            weight: "400" },
+    { family: "ZhiMangXing",        url: "fonts/ZhiMangXing-Regular.ttf",         weight: "400" },
+    { family: "Zen Kurenaido",      url: "fonts/ZenKurenaido-Regular.ttf",        weight: "400" },
+    { family: "Yomogi",             url: "fonts/Yomogi-Regular.ttf",              weight: "400" },
+    { family: "LiuJianMaoCao",      url: "fonts/LiuJianMaoCao-Regular.ttf",       weight: "400" },
+    /* 英文手写 */
     { family: "Caveat",             url: "fonts/Caveat-Regular.woff2",            weight: "400" },
     { family: "Caveat",             url: "fonts/Caveat-Bold.woff2",               weight: "700" },
     { family: "Patrick Hand",       url: "fonts/PatrickHand-Regular.woff2",       weight: "400" },
@@ -14,12 +23,7 @@
     { family: "Architects Daughter",url: "fonts/ArchitectsDaughter-Regular.woff2",weight: "400" },
     { family: "Gloria Hallelujah",  url: "fonts/GloriaHallelujah-Regular.woff2",  weight: "400" },
     { family: "Reenie Beanie",      url: "fonts/ReenieBeanie-Regular.woff2",      weight: "400" },
-    { family: "Rock Salt",          url: "fonts/RockSalt-Regular.woff2",          weight: "400" },
-    { family: "MaShanZheng",        url: "fonts/MaShanZheng-Regular.ttf",         weight: "400" },
-    { family: "LongCang",           url: "fonts/LongCang-Regular.ttf",            weight: "400" },
-    { family: "LiuJianMaoCao",      url: "fonts/LiuJianMaoCao-Regular.ttf",       weight: "400" },
-    { family: "ZhiMangXing",        url: "fonts/ZhiMangXing-Regular.ttf",         weight: "400" },
-    { family: "ZCOOLKuaiLe",        url: "fonts/ZCOOLKuaiLe-Regular.ttf",         weight: "400" }
+    { family: "Rock Salt",          url: "fonts/RockSalt-Regular.woff2",          weight: "400" }
   ];
 
   /* 字体目录：由本脚本自身的 URL 推导，因此在任意子目录下都能正确定位 */
@@ -60,6 +64,8 @@
     hand: "normal",          // 工整 / 自然 / 随性
     handCustom: false,       // 高级设置里是否手动改过抖动
     fontLang: "cjk",
+    bold: false, italic: false, underline: false,
+    textColor: "#1b2a5e", textScale: 1,
     autoRender: true,        // 关闭后需手动点「生成手写稿」
     jitter: 1.1,
     rotateDeg: 0.55,
@@ -89,6 +95,8 @@
       baselineDrift: state.baselineDrift, inkColor: state.inkColor, inkAmount: state.inkAmount,
       inkVary: state.inkVary, formulaHand: state.formulaHand, formulaScale: state.formulaScale, seed: state.seed,
       hand: state.hand, handCustom: state.handCustom, fontLang: state.fontLang,
+      bold: state.bold, italic: state.italic, underline: state.underline,
+      textColor: state.textColor, textScale: state.textScale,
       marginTop: m, marginBottom: Math.round(m * 0.9), marginLeft: m, marginRight: Math.round(m * 0.8),
       showHeader: state.showHeader, headerText: state.headerText,
       showDate: state.showDate, dateText: new Date().toLocaleDateString("zh-CN"),
@@ -434,6 +442,25 @@
       });
     }
 
+    /* ---------- 文字样式（加粗 / 斜体 / 下划线 / 字色 / 缩放） ---------- */
+    function bindFmt(id, key) {
+      var el = $(id);
+      if (!el) return;
+      el.setAttribute("aria-pressed", state[key] ? "true" : "false");
+      el.addEventListener("click", function () {
+        state[key] = !state[key];
+        el.setAttribute("aria-pressed", state[key] ? "true" : "false");
+        scheduleRender(true);
+      });
+    }
+    bindFmt("fmtBold", "bold");
+    bindFmt("fmtItalic", "italic");
+    bindFmt("fmtUnder", "underline");
+
+    var tcol = $("textColor");
+    if (tcol) { tcol.value = state.textColor; tcol.addEventListener("input", function () { state.textColor = tcol.value; scheduleRender(); }); }
+    bindRange("textScale", "textScale", function (v) { return v.toFixed(2) + "×"; });
+
     /* ---------- 生成按钮 + 自动重绘开关 ---------- */
     var regen = $("regenerate");
     if (regen) regen.addEventListener("click", function () {
@@ -459,7 +486,11 @@
     window.addEventListener("keydown", function (e) {
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "Enter") { e.preventDefault(); clearDirty(); regenerate(); }
-      if (e.key.toLowerCase() === "s") { e.preventDefault(); var b = $("exportPdf"); if (b) b.click(); }
+      var k = e.key.toLowerCase();
+      if (k === "b") { e.preventDefault(); var fb = $("fmtBold"); if (fb) fb.click(); }
+      if (k === "i") { e.preventDefault(); var fi = $("fmtItalic"); if (fi) fi.click(); }
+      if (k === "u") { e.preventDefault(); var fu = $("fmtUnder"); if (fu) fu.click(); }
+      if (k === "s") { e.preventDefault(); var b = $("exportPdf"); if (b) b.click(); }
     });
   }
 
