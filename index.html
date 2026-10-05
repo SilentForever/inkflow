@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InkFlow 墨流 · 数学答案转手写体</title>
+<meta name="description" content="把数学/学科答案文档一键转成逼真手写体。纯浏览器本地处理，不上传、不存储、刷新即清空。">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 顶栏 ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">✍</span>
+      <span>InkFlow 墨流<small>数学答案 → 手写体 · 纯本地</small></span>
+    </div>
+    <div class="badges">
+      <span class="badge ok" title="本页不发起任何网络请求，不写入本地存储"><span class="dot"></span>数据不离开浏览器</span>
+      <span class="badge neutral" id="fontBadge">字体加载中…</span>
+      <span class="badge neutral" id="mathBadge">公式引擎加载中…</span>
+      <button class="btn ghost sm" id="showHelp" type="button">使用说明</button>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- ============ 左：输入 ============ -->
+    <section class="col" id="dropzone">
+      <div class="col-head">
+        <h2>文档输入</h2>
+        <div class="btn-row" style="margin-left:auto">
+          <button class="btn sm" id="loadDemo" type="button">方程示例</button>
+          <button class="btn sm" id="loadDemo2" type="button">微积分示例</button>
+          <button class="btn sm ghost" id="clearAll" type="button">清空</button>
+        </div>
+      </div>
+      <div class="editor-wrap">
+        <label class="sr-only" for="source">文档内容</label>
+        <textarea id="source" spellcheck="false"
+          placeholder="在此粘贴 Markdown / LaTeX，或把 .md / .txt 文件拖进本区域…&#10;&#10;行内公式用 $...$，独立公式用 $$...$$"></textarea>
+        <div class="editor-foot">
+          <span id="counts">0 字符 · 0 行</span>
+          <span class="spacer"></span>
+          <span>Ctrl/⌘ + Enter 立即重绘</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 中：参数 ============ -->
+    <section class="col">
+      <div class="col-head"><h2>手写参数</h2></div>
+      <div class="col-body">
+
+        <div class="field">
+          <label for="pageSize">纸张尺寸</label>
+          <select id="pageSize">
+            <option value="a4">A4 竖版</option>
+            <option value="a4l">A4 横版</option>
+            <option value="letter">Letter</option>
+            <option value="square">方形</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="paper">纸张样式</label>
+          <select id="paper">
+            <option value="plain">白纸</option>
+            <option value="ruled">横线纸</option>
+            <option value="grid">方格纸</option>
+            <option value="mi">米字格</option>
+            <option value="kraft">牛皮纸</option>
+            <option value="letter">信纸</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="fontKey">手写字体</label>
+          <select id="fontKey">
+            <option value="mashanzheng">马善政 毛笔（中文）</option>
+            <option value="longcang">龙藏 行草（中文）</option>
+            <option value="kai">系统楷体（中文兜底）</option>
+            <option value="caveat">Caveat 连笔（拉丁）</option>
+            <option value="rocksalt">Rock Salt 潦草（拉丁）</option>
+            <option value="reenie">Reenie 随性（拉丁）</option>
+            <option value="homemade">Homemade 手写（拉丁）</option>
+            <option value="patrick">Patrick 工整（拉丁）</option>
+          </select>
+          <div class="hint">中文内容请选中文体；纯英文可用拉丁体</div>
+        </div>
+
+        <div class="field">
+          <label for="customFont">自定义字体（可选）</label>
+          <input type="file" id="customFont" accept=".ttf,.otf,.woff,.woff2">
+          <div class="hint" id="customFontHint">载入本机的 ttf/otf 字体文件，仅本地读取，不会上传</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <label for="fontSize">字号</label>
+          <input type="range" id="fontSize" min="16" max="56" step="1" value="28">
+          <div class="field-label"><span class="hint">越大越清晰，每页字数越少</span><output id="fontSizeOut"></output></div>
+        </div>
+
+        <div class="field">
+          <label for="lineHeight">行距</label>
+          <input type="range" id="lineHeight" min="1.2" max="3.4" step="0.05" value="1.9">
+          <div class="field-label"><span class="hint">相对字号的倍数</span><output id="lineHeightOut"></output></div>
+        </div>
+
+        <div class="field">
+          <label for="letterSpacing">字距</label>
+          <input type="range" id="letterSpacing" min="0" max="4" step="0.1" value="0.3">
+          <div class="field-label"><span class="hint">额外字间距（px）</span><output id="letterSpacingOut"></output></div>
+        </div>
+
+        <details class="adv" open>
+          <summary>手写自然度</summary>
+          <div style="padding-top:8px">
+            <div class="field">
+              <label for="jitter">抖动强度</label>
+              <input type="range" id="jitter" min="0" max="4" step="0.05" value="1.1">
+              <div class="field-label"><span class="hint">每个字的位置随机偏移</span><output id="jitterOut"></output></div>
+            </div>
+            <div class="field">
+              <label for="rotateDeg">字形倾斜</label>
+              <input type="range" id="rotateDeg" min="0" max="3" step="0.05" value="0.55">
+              <div class="field-label"><span class="hint">单字旋转幅度</span><output id="rotateDegOut"></output></div>
+            </div>
+            <div class="field">
+              <label for="sizeVary">字号变化</label>
+              <input type="range" id="sizeVary" min="0" max="0.12" step="0.005" value="0.02">
+              <div class="field-label"><span class="hint">大小不一的自然感</span><output id="sizeVaryOut"></output></div>
+            </div>
+            <div class="field">
+              <label for="baselineDrift">基线漂移</label>
+              <input type="range" id="baselineDrift" min="0" max="4" step="0.1" value="0.7">
+              <div class="field-label"><span class="hint">整行上下起伏</span><output id="baselineDriftOut"></output></div>
+            </div>
+            <div class="field">
+              <label for="formulaScribble">公式潦草度</label>
+              <input type="range" id="formulaScribble" min="0" max="1" step="0.05" value="0.5">
+              <div class="field-label"><span class="hint">让印刷体公式带上手写扭曲与叠描</span><output id="formulaScribbleOut"></output></div>
+            </div>
+            <div class="field">
+              <label for="formulaScale">公式大小</label>
+              <input type="range" id="formulaScale" min="0.7" max="1.7" step="0.05" value="1">
+              <div class="field-label"><span class="hint">已按所选字体自动匹配，可再微调</span><output id="formulaScaleOut"></output></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="adv">
+          <summary>墨迹与页边距</summary>
+          <div style="padding-top:8px">
+            <div class="field">
+              <label for="inkColor">墨水颜色</label>
+              <input type="color" id="inkColor" value="#1b2a5e">
+            </div>
+            <div class="field">
+              <label for="inkAmount">墨量</label>
+              <input type="range" id="inkAmount" min="0.3" max="1" step="0.01" value="0.93">
+              <div class="field-label"><span class="hint">整体浓淡</span><output id="inkAmountOut"></output></div>
+            </div>
+            <div class="field">
+              <label for="inkVary">墨色不均</label>
+              <input type="range" id="inkVary" min="0" max="0.4" step="0.01" value="0.09">
+              <div class="field-label"><span class="hint">模拟笔压变化</span><output id="inkVaryOut"></output></div>
+            </div>
+            <div class="field">
+              <label for="margin">页边距</label>
+              <input type="range" id="margin" min="40" max="170" step="2" value="88">
+              <div class="field-label"><span class="hint">四周留白</span><output id="marginOut"></output></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="adv">
+          <summary>页眉页脚与随机种子</summary>
+          <div style="padding-top:8px">
+            <div class="field">
+              <label for="headerText">页眉文字</label>
+              <input type="text" id="headerText" placeholder="如：第 3 次作业" maxlength="60">
+            </div>
+            <label class="checkline"><input type="checkbox" id="showHeader" checked> 显示页眉</label>
+            <label class="checkline"><input type="checkbox" id="showDate"> 页眉右侧显示日期</label>
+            <label class="checkline"><input type="checkbox" id="showFooter" checked> 显示页码</label>
+            <label class="checkline"><input type="checkbox" id="showTotalPages" checked> 页码显示总页数</label>
+            <div class="field" style="margin-top:10px">
+              <label for="seed">随机种子</label>
+              <div style="display:flex;gap:8px">
+                <input type="number" id="seed" value="20240517" min="0" step="1">
+                <button class="btn sm" id="reseed" type="button">换一批</button>
+              </div>
+              <div class="hint">同一种子 → 完全相同的排版，便于复现</div>
+            </div>
+          </div>
+        </details>
+
+        <div class="divider"></div>
+        <div class="field-label" style="margin-bottom:8px">本次渲染</div>
+        <div class="stats" id="stats"><div class="stat"><b>—</b><span>等待输入</span></div></div>
+
+      </div>
+    </section>
+
+    <!-- ============ 右：预览 ============ -->
+    <section class="col preview-col">
+      <div class="col-head">
+        <h2>手写预览</h2>
+        <div class="pager" style="margin-left:auto">
+          <button class="btn sm" id="prevPage" type="button" aria-label="上一页">‹</button>
+          <span class="page-ind" id="pageInd">0 / 0</span>
+          <button class="btn sm" id="nextPage" type="button" aria-label="下一页">›</button>
+          <span class="badge neutral" id="busy" style="display:none">渲染中…</span>
+          <button class="btn sm primary" id="exportPng" type="button">导出 PNG</button>
+          <button class="btn sm primary" id="exportPdf" type="button">导出 PDF</button>
+        </div>
+      </div>
+      <div class="preview-stage" id="stage"></div>
+      <div class="preview-empty" id="empty">
+        <div style="font-size:34px" aria-hidden="true">📄</div>
+        <div>左侧粘贴内容后，这里会实时出现手写效果</div>
+        <div class="hint">公式请用 <code>$...$</code> 或 <code>$$...$$</code> 包裹</div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<!-- ============ 帮助 ============ -->
+<dialog id="helpDlg">
+  <div class="dlg-head">使用说明</div>
+  <div class="dlg-body">
+    <p><b>三步出结果</b></p>
+    <p>1. 在左侧粘贴答案内容（支持 Markdown 标题、列表、代码块）；<br>
+       2. 公式用 <code>$...$</code>（行内）或 <code>$$...$$</code>（独立成行）；<br>
+       3. 右侧实时预览，满意后点「导出 PNG / PDF」。</p>
+    <div class="divider"></div>
+    <p><b>支持哪些公式？</b></p>
+    <p>由 MathJax 渲染，支持分数、根号、上下标、求和、积分、矩阵、希腊字母等几乎全部 LaTeX 数学语法。</p>
+    <div class="divider"></div>
+    <p><b>关于隐私</b></p>
+    <p>本页<b>没有服务器</b>：所有计算都在你的浏览器里完成，内容不会上传，也不写入本地存储；关闭或刷新页面即彻底消失。</p>
+    <div class="divider"></div>
+    <p><b>小技巧</b></p>
+    <p>· 想更「手写」一点：调高<b>抖动强度</b>与<b>基线漂移</b>；<br>
+       · 想更工整：把抖动降到 0.3 以下，字体选 Patrick；<br>
+       · 中文内容请选择「马善政 / 龙藏 / 系统楷体」字体；<br>
+       · 换随机种子可以得到完全不同的一版排版。</p>
+  </div>
+  <div class="dlg-foot"><button class="btn primary" id="helpClose" type="button">知道了</button></div>
+</dialog>
+
+<!-- ============ 脚本（全部本地，经典脚本以兼容 file://） ============ -->
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/mathjax/tex-svg.js"></script>
+<script src="js/prng.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/mathrender.js"></script>
+<script src="js/paper.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/samples.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

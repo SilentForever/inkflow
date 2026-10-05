@@ -1,0 +1,5 @@
+/* InkFlow · 内置示例（内联常量，避免 file:// 下 fetch 被拦截） */
+window.InkSamples = {
+  equation: "# 一元二次方程 求解与验证\n\n## 一、求根公式推导\n\n对于一般形式 $ax^2+bx+c=0\\ (a\\neq 0)$，两边同除以 $a$：\n\n$$x^2+\\frac{b}{a}x+\\frac{c}{a}=0$$\n\n配方得 $\\left(x+\\dfrac{b}{2a}\\right)^2=\\dfrac{b^2-4ac}{4a^2}$，于是：\n\n$$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$$\n\n其中 $\\Delta=b^2-4ac$ 称为判别式。\n\n## 二、例题\n\n求解 $2x^2-4x-6=0$。\n\n1. 计算判别式：$\\Delta=(-4)^2-4\\times 2\\times(-6)=16+48=64>0$\n2. 代入求根公式：$x=\\dfrac{4\\pm\\sqrt{64}}{4}=\\dfrac{4\\pm 8}{4}$\n3. 得 $x_1=3,\\ x_2=-1$\n\n## 三、结论\n\n当 $\\Delta>0$ 时有两个不等实根；$\\Delta=0$ 时有两个相等实根；$\\Delta<0$ 时无实根。",
+  calculus: "# 微积分基本定理\n\n设 $f(x)$ 在 $[a,b]$ 上连续，$F(x)$ 是其原函数，则\n\n$$\\int_{a}^{b} f(x)\\,\\mathrm{d}x = F(b)-F(a)$$\n\n## 常用积分公式\n\n- $\\int x^n \\mathrm{d}x=\\dfrac{x^{n+1}}{n+1}+C$\n- $\\int e^x \\mathrm{d}x=e^x+C$\n- $\\int \\sin x\\,\\mathrm{d}x=-\\cos x+C$\n- $\\int \\dfrac{1}{x}\\,\\mathrm{d}x=\\ln|x|+C$\n\n## 矩阵与行列式\n\n$$A=\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix},\\quad \\det A=ad-bc$$\n\n若 $\\det A\\neq 0$，则 $A^{-1}=\\dfrac{1}{\\det A}\\begin{pmatrix} d & -b \\\\ -c & a \\end{pmatrix}$。"
+};

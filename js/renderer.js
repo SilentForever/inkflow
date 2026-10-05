@@ -1,0 +1,444 @@
+/* InkFlow · 手写渲染内核：排版 + 逐字手写化 + 分页 */
+(function (global) {
+  "use strict";
+  var U = global.InkUtil;
+
+  var FONTS = {
+    caveat:      { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive',      cjk: false },
+    rocksalt:    { label: "Rock Salt 潦草",  css: '"Rock Salt", cursive',                   cjk: false },
+    reenie:      { label: "Reenie 随性",     css: '"Reenie Beanie", cursive',               cjk: false },
+    homemade:    { label: "Homemade 手写",   css: '"Homemade Apple", cursive',              cjk: false },
+    patrick:     { label: "Patrick 工整",    css: '"Patrick Hand", cursive',                cjk: false },
+    mashanzheng: { label: "马善政 毛笔",     css: '"MaShanZheng", "KaiTi", cursive',        cjk: true },
+    longcang:    { label: "龙藏 行草",       css: '"LongCang", "KaiTi", cursive',           cjk: true },
+    kai:         { label: "系统楷体",        css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true }
+  };
+
+  /* 允许在运行时挂载用户自带的字体 */
+  function addCustomFont(key, familyName, label) {
+    if (!key || !familyName) return;
+    _visCache = {};
+    FONTS[key] = { label: label || familyName, css: '"' + familyName + '", cursive', cjk: true, custom: true };
+  }
+  var MONO = '"Consolas", "Courier New", monospace';
+
+  var PAGE_SIZES = {
+    a4:     { w: 1240, h: 1754, label: "A4 竖版" },
+    a4l:    { w: 1754, h: 1240, label: "A4 横版" },
+    letter: { w: 1275, h: 1650, label: "Letter" },
+    square: { w: 1400, h: 1400, label: "方形" }
+  };
+
+  /* 行内公式高度超过该倍数（相对字号）时，单独成行以避免挤压正文 */
+  var INLINE_MATH_TALL = 99;   // 行内公式不再单独抽行（真正的裁切问题已在 mathrender 修复）
+
+  var _mc = null;
+  function measurer() { if (!_mc) _mc = document.createElement("canvas"); return _mc.getContext("2d"); }
+  function fontStr(px, cssFont) { return px + "px " + cssFont; }
+  function measureText(text, px, cssFont) { var c = measurer(); c.font = fontStr(px, cssFont); return c.measureText(text).width; }
+
+  function fontCssOf(key) { return (FONTS[key] || FONTS.caveat).css; }
+
+  /* ---------- 公式视觉尺寸自适应 ----------
+   * 不同字体的"视觉大小"差异很大（Caveat 的 x-height 只有 0.36em，
+   * Rock Salt 却高达 0.79em），若公式用统一字号，就会出现公式比正文
+   * 明显偏小或偏大的问题。这里按字体实测的视觉比例缩放公式字号。 */
+  var _visCache = {};
+  function visualRatioOf(key) {
+    if (_visCache[key] != null) return _visCache[key];
+    var f = FONTS[key] || FONTS.caveat;
+    var ratio = 0;
+    try {
+      var c = measurer();
+      c.font = "100px " + f.css;
+      var cjk = c.measureText("\u6c49").actualBoundingBoxAscent || 0;
+      var lat = c.measureText("x").actualBoundingBoxAscent || 0;
+      if (f.cjk) ratio = cjk / 100;
+      else ratio = (lat / 100) * 1.45;
+      if (!(ratio > 0.05) && cjk > 0) ratio = cjk / 100;
+    } catch (e) { ratio = 0; }
+    /* 量不到（字体尚未就绪）时给出估算值，但**不写入缓存**，等字体就绪后再量 */
+    if (!(ratio > 0.05)) return 0.62;
+    _visCache[key] = ratio;
+    return ratio;
+  }
+
+  /* 公式字号相对正文字号的倍数 */
+  function formulaScaleOf(key) {
+    var ratio = visualRatioOf(key);
+    var s = ratio / 0.62;
+    return U.clamp(s, 0.82, 1.5);
+  }
+
+  /* ---------- 行内片段 → token ---------- */
+  function inlineTokens(text, px, fontKey, settings) {
+    var fc = fontCssOf(fontKey);
+    var segs = global.InkParser.segment(text);
+    var tokens = [];
+    for (var i = 0; i < segs.length; i++) {
+      var seg = segs[i];
+      if (seg.kind === "text") {
+        var units = U.splitUnits(seg.value);
+        for (var j = 0; j < units.length; j++) {
+          var u = units[j];
+          var w = measureText(u.t, px, fc) + (u.space ? 0 : settings.letterSpacing);
+          tokens.push({ kind: u.space ? "space" : "text", text: u.t, w: w, h: px, size: px, font: fc });
+        }
+      } else {
+        var fpx = settings.formulaPx || px;
+        var m = global.InkMath.render(seg.value, fpx, settings.inkColor);
+        /* 行内公式过宽时等比缩小，避免撑出页面 */
+        if (m) {
+          var availW = (settings.pageWidth || 1240) - (settings.marginLeft || 0) - (settings.marginRight || 0);
+          if (availW > 0 && m.w > availW) {
+            var scFit = availW / m.w;
+            var m2 = global.InkMath.render(seg.value, fpx * scFit, settings.inkColor);
+            if (m2 && m2.w < m.w) { m = m2; fpx = fpx * scFit; }
+          }
+        }
+        if (m) {
+          var tall = m.h > px * INLINE_MATH_TALL;
+          tokens.push({ kind: "math", latex: seg.value, w: m.w, h: m.h, depth: m.depth, svg: m.html, size: fpx, font: fc, tall: tall });
+        } else {
+          var t2 = "$" + seg.value + "$";
+          tokens.push({ kind: "text", text: t2, w: measureText(t2, px, fc), h: px, size: px, font: fc, degraded: true });
+        }
+      }
+    }
+    return tokens;
+  }
+
+  /* ---------- 块 → 视觉行 ---------- */
+  function layoutBlocks(blocks, s) {
+    var maxW = s.pageWidth - s.marginLeft - s.marginRight;
+    var lines = [];
+
+    function pushLine(tokens, kind, size, align, indent) {
+      lines.push({ tokens: tokens, kind: kind, size: size, align: align || "left", indent: indent || 0 });
+    }
+
+    /* 中文避头尾：这些符号不能出现在行首 / 行尾 */
+    function canStartLine(tk) {
+      if (tk.kind !== "text" || !tk.text) return true;
+      return "\u3002\uff0c\u3001\uff1b\uff1a\uff1f\uff01\uff09\u3011\u300b\u300d\u300f\u201d\u2026\u2014\u00b7%\u2030\u2103".indexOf(tk.text) < 0;
+    }
+    function canEndLine(tk) {
+      if (tk.kind !== "text" || !tk.text) return true;
+      return "\uff08\u3010\u300a\u300c\u300e\u201c".indexOf(tk.text) < 0;
+    }
+
+    /* 把 token 流换行；过高的行内公式自动独占一行 */
+    function flow(tokens, kind, size) {
+      var cur = [], curW = 0, indent = 0;
+      var limit = maxW;
+      for (var k = 0; k < tokens.length; k++) {
+        var tk = tokens[k];
+        if (tk.tall) {
+          if (cur.length) { pushLine(cur, kind, size, "left", indent); cur = []; curW = 0; }
+          pushLine([tk], "mathblock", size, "center", 0);
+          continue;
+        }
+        if (tk.kind === "space" && cur.length === 0) continue;
+
+        var needBreak = (curW + tk.w > limit && cur.length > 0);
+        if (needBreak) {
+          // 避头：下一个字不能在行首 → 允许本行悬挂溢出（悬挂标点）
+          if (!canStartLine(tk)) { cur.push(tk); curW += tk.w; continue; }
+          // 避尾：本行最后一个字不能在行尾 → 把它一起挪到下一行
+          var carry = null;
+          if (cur.length > 1 && !canEndLine(cur[cur.length - 1])) {
+            carry = cur.pop();
+            curW -= carry.w;
+          }
+          pushLine(cur, kind, size, "left", indent);
+          cur = []; curW = 0;
+          if (carry) { cur.push(carry); curW += carry.w; }
+          if (tk.kind === "space") continue;
+        }
+        cur.push(tk); curW += tk.w;
+      }
+      if (cur.length) pushLine(cur, kind, size, "left", indent);
+      else if (!tokens.length) pushLine([], kind, size, "left", 0);
+    }
+
+    for (var i = 0; i < blocks.length; i++) {
+      var b = blocks[i];
+      if (b.type === "blank") { pushLine([], "blank", s.fontSize, "left", 0); continue; }
+      if (b.type === "hr") { pushLine([], "hr", s.fontSize, "left", 0); continue; }
+
+      if (b.type === "heading") {
+        var hs = s.fontSize * (b.level <= 1 ? 1.7 : b.level === 2 ? 1.42 : 1.2);
+        flow(inlineTokens(b.text, hs, s.fontKey, s), "heading", hs);
+        pushLine([], "gap", s.fontSize * 0.4, "left", 0);
+        continue;
+      }
+      if (b.type === "para") { flow(inlineTokens(b.text, s.fontSize, s.fontKey, s), "para", s.fontSize); continue; }
+      if (b.type === "bullet") {
+        flow(inlineTokens("\u2022  " + b.text, s.fontSize, s.fontKey, s), "para", s.fontSize);
+        continue;
+      }
+      if (b.type === "ordered") {
+        flow(inlineTokens(b.num + ".  " + b.text, s.fontSize, s.fontKey, s), "para", s.fontSize);
+        continue;
+      }
+      if (b.type === "code") {
+        var cl = String(b.text).split("\n");
+        var cs = s.fontSize * 0.82;
+        for (var c = 0; c < cl.length; c++) {
+          var ct = cl[c] || " ";
+          pushLine([{ kind: "code", text: ct, w: measureText(ct, cs, MONO), h: cs, size: cs, font: MONO }], "code", cs, "left", 14);
+        }
+        continue;
+      }
+      if (b.type === "mathblock") {
+        var ms = (s.formulaPx || s.fontSize) * 1.25;
+        var mm = global.InkMath.render(b.latex, ms, s.inkColor);
+        /* 独立公式过宽时等比缩小，保证不出血 */
+        if (mm && maxW > 0 && mm.w > maxW) {
+          var scB = maxW / mm.w;
+          var mmS = global.InkMath.render(b.latex, ms * scB, s.inkColor);
+          if (mmS && mmS.w < mm.w) { mm = mmS; ms = ms * scB; }
+        }
+        if (mm) {
+          pushLine([{ kind: "math", latex: b.latex, w: mm.w, h: mm.h, depth: mm.depth, svg: mm.html, size: ms, font: fontCssOf(s.fontKey) }], "mathblock", ms, "center", 0);
+        } else {
+          var raw = "$$" + b.latex + "$$";
+          pushLine([{ kind: "text", text: raw, w: measureText(raw, s.fontSize, fontCssOf(s.fontKey)), h: s.fontSize, size: s.fontSize, font: fontCssOf(s.fontKey), degraded: true }], "para", s.fontSize, "left", 0);
+        }
+        continue;
+      }
+    }
+    return lines;
+  }
+
+  /* ---------- 行高与基线（ascent/descent 模型） ---------- */
+  /* 文本按字形上下伸展量估算；公式用其精确高度与基线深度 */
+  function ascentOf(tk) {
+    if (tk.kind === "math") return Math.max(0, tk.h - tk.depth);
+    return tk.size * 0.80;
+  }
+  function descentOf(tk) {
+    if (tk.kind === "math") return Math.max(0, tk.depth);
+    return tk.size * 0.26;
+  }
+  function metricsOf(ln, s) {
+    var asc = s.fontSize * 0.80, desc = s.fontSize * 0.26;
+    for (var t = 0; t < ln.tokens.length; t++) {
+      var a = ascentOf(ln.tokens[t]), d = descentOf(ln.tokens[t]);
+      if (a > asc) asc = a;
+      if (d > desc) desc = d;
+    }
+    return { asc: asc, desc: desc };
+  }
+
+  function lineHeightFor(ln, s) {
+    if (ln.kind === "blank") return s.lineHeightPx * 0.5;
+    if (ln.kind === "gap") return s.lineHeightPx * 0.3;
+    if (ln.kind === "hr") return s.lineHeightPx * 0.8;
+    if (ln.kind === "code") return s.lineHeightPx * 0.92;
+    var m = metricsOf(ln, s);
+    var needed = m.asc + m.desc + s.fontSize * 0.12;
+    var base = s.lineHeightPx;
+    if (ln.kind === "heading") base = Math.max(base, ln.size * 1.5);
+    if (ln.kind === "mathblock") base = Math.max(base, m.asc + m.desc + s.fontSize * 0.6);
+    return Math.max(base, needed);
+  }
+
+  /* ---------- 分页 ---------- */
+  function paginate(lines, s) {
+    var usable = s.pageHeight - s.marginTop - s.marginBottom;
+    var pages = [], cur = [], y = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var lh = lineHeightFor(lines[i], s);
+      if (y + lh > usable && cur.length > 0) { pages.push(cur); cur = []; y = 0; }
+      cur.push(lines[i]); y += lh;
+    }
+    pages.push(cur);
+    return pages;
+  }
+
+  /* ---------- 公式预处理：SVG → Image → 潦草化 ---------- */
+  function collectMath(lines) {
+    var map = new Map();
+    for (var i = 0; i < lines.length; i++) {
+      var t = lines[i].tokens;
+      for (var j = 0; j < t.length; j++) {
+        var tk = t[j];
+        if (tk.kind === "math" && !map.has(tk.svg)) map.set(tk.svg, { tok: tk, img: null, prep: null });
+      }
+    }
+    return map;
+  }
+
+  async function prepareMath(map, s) {
+    var jobs = [];
+    map.forEach(function (rec, svg) {
+      jobs.push((async function () {
+        var img = await global.InkMath.loadImage(svg);
+        rec.img = img;
+        if (!img) { rec.prep = null; return; }
+        var amount = typeof s.formulaScribble === "number" ? s.formulaScribble : 0;
+        var seed = (U.hashString(String(rec.tok.latex || "")) ^ (s.seed >>> 0)) >>> 0;
+        rec.prep = global.InkMath.scribble(img, rec.tok.w, rec.tok.h, amount, seed, s.inkColor);
+      })());
+    });
+    if (jobs.length) await Promise.all(jobs);
+  }
+
+  /* ---------- 主渲染 ---------- */
+  async function render(blocks, s, opts) {
+    opts = opts || {};
+    var now = function () { return (global.performance || Date).now(); };
+    var t0 = now();
+
+    s = Object.assign({}, s);
+    var ps = PAGE_SIZES[s.pageSize] || PAGE_SIZES.a4;
+    s.pageWidth = ps.w; s.pageHeight = ps.h;
+    s.lineHeightPx = s.fontSize * s.lineHeight;
+    var fscale = formulaScaleOf(s.fontKey) * (s.formulaScale || 1);
+    s.formulaPx = s.fontSize * fscale;
+
+    var lines = layoutBlocks(blocks, s);
+    var tLayout = now();
+
+    var mathMap = collectMath(lines);
+    await prepareMath(mathMap, s);
+    var tMath = now();
+
+    var pages = paginate(lines, s);
+    var canvases = [];
+
+    for (var p = 0; p < pages.length; p++) {
+      var cv = document.createElement("canvas");
+      cv.width = s.pageWidth; cv.height = s.pageHeight;
+      var ctx = cv.getContext("2d");
+      ctx.textBaseline = "alphabetic";
+
+      var paper = global.InkPaper.byId(s.paper);
+      global.InkPaper.draw(ctx, paper, {
+        width: s.pageWidth, height: s.pageHeight, top: s.marginTop, bottom: s.marginBottom,
+        left: s.marginLeft, right: s.marginRight, lineH: s.lineHeightPx
+      });
+
+      var rnd = new U.Rand(s.seed, "page" + p + "|" + s.seed);
+      var y = s.marginTop;
+      var drift = 0;
+
+      for (var li = 0; li < pages[p].length; li++) {
+        var ln = pages[p][li];
+        var lh = lineHeightFor(ln, s);
+
+        if (ln.kind === "hr") {
+          ctx.save();
+          ctx.strokeStyle = s.inkColor;
+          ctx.globalAlpha = U.clamp(s.inkAmount * 0.7, 0.1, 1);
+          ctx.lineWidth = Math.max(1, s.fontSize / 24);
+          var hy = Math.round(y + lh * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(s.marginLeft, hy);
+          ctx.bezierCurveTo(s.pageWidth * 0.35, hy + rnd.jitter(1.6), s.pageWidth * 0.65, hy - rnd.jitter(1.6), s.pageWidth - s.marginRight, hy);
+          ctx.stroke();
+          ctx.restore();
+          y += lh; continue;
+        }
+        if (!ln.tokens.length) { y += lh; continue; }
+
+        /* 基线：行盒底部减去下伸量 → 文字正好坐在横线上；再叠加基线漂移 */
+        var lm = metricsOf(ln, s);
+        var baseline = y + lh - lm.desc;
+
+        drift += rnd.jitter(s.baselineDrift);
+        drift = U.clamp(drift, -s.baselineDrift * 3, s.baselineDrift * 3);
+        baseline += drift;
+
+        var totalW = 0;
+        for (var w1 = 0; w1 < ln.tokens.length; w1++) totalW += ln.tokens[w1].w;
+        var x = s.marginLeft + (ln.indent || 0);
+        if (ln.align === "center") x = s.marginLeft + Math.max(0, ((s.pageWidth - s.marginLeft - s.marginRight) - totalW) / 2);
+
+        for (var k = 0; k < ln.tokens.length; k++) {
+          var tk = ln.tokens[k];
+          if (tk.kind === "space") { x += tk.w; continue; }
+
+          var dx = rnd.jitter(s.jitter);
+          var dy = rnd.jitter(s.jitter * 0.55);
+          var rot = rnd.jitter(s.rotateDeg) * Math.PI / 180;
+          var sc = 1 + rnd.jitter(s.sizeVary);
+          var alpha = U.clamp(s.inkAmount * (1 + rnd.jitter(s.inkVary)), 0.05, 1);
+
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          var cx = x + tk.w / 2;
+          ctx.translate(cx + dx, baseline + dy);
+          ctx.rotate(rot);
+          ctx.scale(sc, sc);
+
+          if (tk.kind === "math") {
+            var rec = mathMap.get(tk.svg);
+            if (rec && rec.prep) {
+              /* 潦草化位图上下带留白 pad，需一并偏移以保持基线精确对位 */
+              var pad = rec.prep.padPx;
+              ctx.drawImage(rec.prep.canvas, -tk.w / 2, -(tk.h - tk.depth) - pad, tk.w, tk.h + pad * 2);
+            } else if (rec && rec.img) {
+              ctx.drawImage(rec.img, -tk.w / 2, -(tk.h - tk.depth), tk.w, tk.h);
+            }
+          } else {
+            ctx.font = fontStr(tk.size, tk.font);
+            ctx.fillStyle = s.inkColor;
+            ctx.textAlign = "left";
+            ctx.fillText(tk.text, -tk.w / 2, 0);
+          }
+          ctx.restore();
+          x += tk.w;
+        }
+        y += lh;
+      }
+
+      drawFurniture(ctx, s, p, pages.length, rnd);
+      canvases.push(cv);
+    }
+
+    var tEnd = now();
+    return {
+      canvases: canvases, lines: lines, pageCount: canvases.length,
+      stats: {
+        layoutMs: Math.round(tLayout - t0),
+        mathMs: Math.round(tMath - tLayout),
+        totalMs: Math.round(tEnd - t0),
+        lineCount: lines.length, mathCount: mathMap.size, pages: canvases.length
+      }
+    };
+  }
+
+  function drawFurniture(ctx, s, pageIdx, total, rnd) {
+    if (!s.showHeader && !s.showFooter) return;
+    ctx.save();
+    ctx.globalAlpha = U.clamp(s.inkAmount * 0.8, 0.1, 1);
+    ctx.fillStyle = s.inkColor;
+    var fs = Math.max(11, s.fontSize * 0.42);
+    ctx.font = fontStr(fs, fontCssOf(s.fontKey));
+    ctx.textBaseline = "alphabetic";
+    if (s.showHeader && s.headerText) {
+      ctx.textAlign = "left";
+      ctx.fillText(s.headerText, s.marginLeft + rnd.jitter(0.6), s.marginTop - fs * 0.95);
+      if (s.showDate && s.dateText) {
+        ctx.textAlign = "right";
+        ctx.fillText(s.dateText, s.pageWidth - s.marginRight, s.marginTop - fs * 0.95);
+      }
+    }
+    if (s.showFooter) {
+      ctx.textAlign = "center";
+      var label = String(pageIdx + 1);
+      if (s.showTotalPages) label += " / " + total;
+      ctx.fillText(label, s.pageWidth / 2 + rnd.jitter(1.2), s.pageHeight - s.marginBottom * 0.42);
+    }
+    ctx.restore();
+  }
+
+  global.InkRender = {
+    render: render, FONTS: FONTS, MONO: MONO, PAGE_SIZES: PAGE_SIZES,
+    layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor,
+    measureText: measureText, fontStr: fontStr, fontCssOf: fontCssOf, addCustomFont: addCustomFont,
+    visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf
+  };
+})(typeof window !== "undefined" ? window : this);

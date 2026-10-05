@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>InkFlow 自测</title>
+<style>body{font-family:monospace;font-size:12px;white-space:pre-wrap}</style>
+<script>
+/* ===== 隐私与网络拦截：必须在其他脚本之前装好 ===== */
+window.__NET = { fetch: 0, xhr: 0, beacon: 0, ws: 0, urls: [] };
+var _fetch = window.fetch;
+window.fetch = function (u) { window.__NET.fetch++; window.__NET.urls.push('fetch:' + u); return Promise.reject(new Error('blocked by test')); };
+var _open = XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open = function (m, u) { window.__NET.xhr++; window.__NET.urls.push('xhr:' + u); return _open.apply(this, arguments); };
+if (navigator.sendBeacon) { var _b = navigator.sendBeacon.bind(navigator); navigator.sendBeacon = function (u) { window.__NET.beacon++; window.__NET.urls.push('beacon:' + u); return false; }; }
+var _WS = window.WebSocket;
+window.WebSocket = function (u) { window.__NET.ws++; window.__NET.urls.push('ws:' + u); throw new Error('blocked'); };
+/* 记录 localStorage / sessionStorage 写入 */
+window.__STORE = { local: 0, session: 0 };
+['localStorage', 'sessionStorage'].forEach(function (k) {
+  try {
+    var s = window[k];
+    var sp = Object.getPrototypeOf(s);
+    var _set = sp.setItem;
+    sp.setItem = function () { window.__STORE[k === 'localStorage' ? 'local' : 'session']++; return _set.apply(this, arguments); };
+  } catch (e) {}
+});
+window.__ERRORS = [];
+window.addEventListener('error', function (e) { window.__ERRORS.push(String(e.message)); });
+window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.push('unhandledrejection: ' + String(e.reason)); });
+</script>
+</head><body>
+<pre id="results">RUNNING</pre>
+<script src="../vendor/jspdf.umd.min.js"></script>
+<script src="../vendor/mathjax/tex-svg.js"></script>
+<script src="../js/prng.js"></script>
+<script src="../js/parser.js"></script>
+<script src="../js/mathrender.js"></script>
+<script src="../js/paper.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/exporter.js"></script>
+<script src="../js/samples.js"></script>
+<script src="../js/app.js"></script>
+<script>
+(async function () {
+  var results = [];
+  function t(name, fn) { return Promise.resolve().then(fn).then(function (r) {
+      results.push({ name: name, pass: r && r.pass !== false, detail: r && r.detail || '' });
+    }).catch(function (e) { results.push({ name: name, pass: false, detail: 'THREW: ' + (e && e.message || e) }); }); }
+  function assert(cond, msg) { if (!cond) throw new Error(msg || 'assert failed'); }
+
+  /* 等待 MathJax */
+  var mjOk = await new Promise(function (res) {
+    var t0 = Date.now();
+    (function p() {
+      if (window.InkMath.isAvailable()) return res(true);
+      if (Date.now() - t0 > 20000) return res(false);
+      setTimeout(p, 100);
+    })();
+  });
+  window.InkMath.markReady();
+  results.push({ name: 'MathJax 可用', pass: mjOk, detail: JSON.stringify(window.InkMath.stats()) });
+
+  /* ---------- 1. 解析器 ---------- */
+  await t('解析器：标题/列表/代码块/公式块', function () {
+    var src = '# H1\n\n- a\n- b\n\n1. one\n\n\`\`\`js\nvar x=1;\n\`\`\`\n\n$$a^2+b^2$$\n\n行内 $x^2$ 结束';
+    var b = window.InkParser.parse(src);
+    var types = b.map(function (x) { return x.type; });
+    assert(types.indexOf('heading') >= 0, 'no heading');
+    assert(types.filter(function (x) { return x === 'bullet'; }).length === 2, 'bullets != 2');
+    assert(types.indexOf('ordered') >= 0, 'no ordered');
+    assert(types.indexOf('code') >= 0, 'no code');
+    assert(types.indexOf('mathblock') >= 0, 'no mathblock');
+    var mb = b.filter(function (x) { return x.type === 'mathblock'; })[0];
+    assert(mb.latex === 'a^2+b^2', 'mathblock latex wrong: ' + mb.latex);
+    return { pass: true, detail: 'blocks=' + b.length };
+  });
+
+  await t('解析器：行内公式切分', function () {
+    var segs = window.InkParser.segment('设 $f(x)$ 连续，则 \\(y\\) 与 \\[z\\] 结束');
+    var maths = segs.filter(function (s) { return s.kind === 'math'; }).map(function (s) { return s.value; });
+    assert(maths.length === 3, 'expected 3 math, got ' + maths.length + ' ' + JSON.stringify(maths));
+    assert(maths[0] === 'f(x)', 'first wrong');
+    assert(maths[1] === 'y', 'second wrong');
+    assert(maths[2] === 'z', 'third wrong');
+    return { pass: true, detail: JSON.stringify(maths) };
+  });
+
+  await t('解析器：代码块内公式不被误解析', function () {
+    var b = window.InkParser.parse('\`\`\`\n$a+b$\n\`\`\`');
+    var code = b.filter(function (x) { return x.type === 'code'; })[0];
+    assert(code && code.text.indexOf('$a+b$') >= 0, 'code content lost');
+    return { pass: true, detail: JSON.stringify(code.text) };
+  });
+
+  /* ---------- 2. 公式渲染准确性 ---------- */
+  var FORMULAS = [
+    ['分数', '\\frac{a}{b}'],
+    ['嵌套分式', '\\dfrac{-b\\pm\\sqrt{b^2-4ac}}{2a}'],
+    ['根号', '\\sqrt[3]{x+1}'],
+    ['上下标', 'x_1^2 + y_{n+1}'],
+    ['求和', '\\sum_{i=1}^{n} i^2'],
+    ['积分', '\\int_{a}^{b} f(x)\\,\\mathrm{d}x'],
+    ['矩阵', '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}'],
+    ['希腊字母', '\\alpha\\beta\\gamma\\Delta\\Omega'],
+    ['极限', '\\lim_{x\\to 0}\\frac{\\sin x}{x}=1'],
+    ['关系符', 'a\\neq b,\\ x\\leq y,\\ z\\geq w'],
+    ['向量', '\\vec{F}=m\\vec{a}'],
+    ['分段函数', 'f(x)=\\begin{cases} x^2 & x>0 \\\\ 0 & x\\le 0\\end{cases}'],
+    ['三角', '\\sin^2\\theta+\\cos^2\\theta=1'],
+    ['对数', '\\log_{a}(MN)=\\log_a M+\\log_a N'],
+    ['组合数', '\\binom{n}{k}=\\frac{n!}{k!(n-k)!}']
+  ];
+  await t('公式渲染成功率 100%（15 类）', function () {
+    var fails = [];
+    FORMULAS.forEach(function (f) {
+      var r = window.InkMath.render(f[1], 30, '#1b2a5e');
+      if (!r || !r.html || r.w <= 0) fails.push(f[0] + ': ' + f[1]);
+    });
+    assert(fails.length === 0, 'failed: ' + fails.join(' | '));
+    return { pass: true, detail: '15/15 渲染成功，缓存 ' + window.InkMath.cacheSize() };
+  });
+
+  await t('公式尺寸合理（宽高 > 0 且比例正常）', function () {
+    var bad = [];
+    FORMULAS.forEach(function (f) {
+      var r = window.InkMath.render(f[1], 30, '#1b2a5e');
+      if (!(r.w > 2 && r.h > 2 && r.w < 2000 && r.h < 400)) bad.push(f[0] + ' w=' + r.w + ' h=' + r.h);
+    });
+    assert(bad.length === 0, bad.join('; '));
+    return { pass: true, detail: '全部尺寸正常' };
+  });
+
+  /* ---------- 3. 渲染管线 ---------- */
+  function baseSettings(over) {
+    var s = {
+      pageSize: 'a4', paper: 'ruled', fontKey: 'caveat', fontSize: 30, lineHeight: 1.95,
+      letterSpacing: 0.4, jitter: 1.1, rotateDeg: 0.55, sizeVary: 0.02, baselineDrift: 0.7,
+      inkColor: '#1b2a5e', inkAmount: 0.93, inkVary: 0.09, seed: 20240517,
+      marginTop: 88, marginBottom: 79, marginLeft: 88, marginRight: 70,
+      showHeader: true, headerText: '', showDate: false, showFooter: true, showTotalPages: true
+    };
+    if (over) for (var k in over) s[k] = over[k];
+    return s;
+  }
+
+  await t('渲染：示例文档产出画布', async function () {
+    var blocks = window.InkParser.parse(window.InkSamples.equation);
+    var res = await window.InkRender.render(blocks, baseSettings(), {});
+    assert(res.canvases.length >= 1, 'no canvas');
+    assert(res.canvases[0].width === 1240 && res.canvases[0].height === 1754, 'A4 size wrong: ' + res.canvases[0].width + 'x' + res.canvases[0].height);
+    assert(res.stats.mathCount >= 5, 'math count too low: ' + res.stats.mathCount);
+    return { pass: true, detail: JSON.stringify(res.stats) };
+  });
+
+  await t('渲染：画布确实有内容（非空白）', async function () {
+    var blocks = window.InkParser.parse(window.InkSamples.equation);
+    var res = await window.InkRender.render(blocks, baseSettings(), {});
+    var cv = res.canvases[0];
+    var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    var nonBg = 0;
+    for (var i = 0; i < d.length; i += 4 * 37) {
+      if (d[i] < 200 || d[i + 1] < 200 || d[i + 2] < 200) nonBg++;
+    }
+    assert(nonBg > 50, 'canvas looks blank, nonBg=' + nonBg);
+    return { pass: true, detail: 'nonBg samples=' + nonBg };
+  });
+
+  await t('渲染：多页切分正确', async function () {
+    var long = [];
+    for (var i = 0; i < 120; i++) long.push('第 ' + (i + 1) + ' 行内容 $x_' + i + '^2$ 用于测试分页行为。');
+    var blocks = window.InkParser.parse(long.join('\n\n'));
+    var res = await window.InkRender.render(blocks, baseSettings(), {});
+    assert(res.canvases.length >= 2, 'should paginate, pages=' + res.canvases.length);
+    return { pass: true, detail: 'pages=' + res.canvases.length + ' lines=' + res.stats.lineCount };
+  });
+
+  /* ---------- 4. 确定性 / 种子 ---------- */
+  function hashCanvas(cv) {
+    var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    var h = 2166136261;
+    for (var i = 0; i < d.length; i += 997) { h ^= d[i]; h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+
+  await t('确定性：同种子 → 完全相同输出', async function () {
+    var blocks = window.InkParser.parse(window.InkSamples.equation);
+    var a = await window.InkRender.render(blocks, baseSettings(), {});
+    var b = await window.InkRender.render(blocks, baseSettings(), {});
+    var ha = hashCanvas(a.canvases[0]), hb = hashCanvas(b.canvases[0]);
+    assert(ha === hb, 'hashes differ: ' + ha + ' vs ' + hb);
+    return { pass: true, detail: 'hash=' + ha };
+  });
+
+  await t('随机性：换种子 → 输出不同', async function () {
+    var blocks = window.InkParser.parse(window.InkSamples.equation);
+    var a = await window.InkRender.render(blocks, baseSettings(), {});
+    var b = await window.InkRender.render(blocks, baseSettings({ seed: 999 }), {});
+    var ha = hashCanvas(a.canvases[0]), hb = hashCanvas(b.canvases[0]);
+    assert(ha !== hb, 'hashes identical, jitter not working');
+    return { pass: true, detail: ha + ' vs ' + hb };
+  });
+
+  /* ---------- 5. 全部纸张/字体组合 ---------- */
+  await t('稳定性：6 纸张 × 8 字体 全组合渲染', async function () {
+    var papers = ['plain', 'ruled', 'grid', 'mi', 'kraft', 'letter'];
+    var fonts = ['caveat', 'rocksalt', 'reenie', 'homemade', 'patrick', 'mashanzheng', 'longcang', 'kai'];
+    var blocks = window.InkParser.parse('# 测试\n\n中文与 English 混排 $E=mc^2$ 与 $\\frac{1}{2}$。');
+    var n = 0;
+    for (var i = 0; i < papers.length; i++) {
+      for (var j = 0; j < fonts.length; j++) {
+        var r = await window.InkRender.render(blocks, baseSettings({ paper: papers[i], fontKey: fonts[j] }), {});
+        assert(r.canvases.length >= 1, 'failed ' + papers[i] + '/' + fonts[j]);
+        n++;
+      }
+    }
+    return { pass: true, detail: n + ' 种组合全部成功' };
+  });
+
+  /* ---------- 6. 性能 ---------- */
+  await t('性能：约 1000 字文档渲染 < 3000ms', async function () {
+    var paras = [];
+    for (var i = 0; i < 40; i++) {
+      paras.push('第' + (i + 1) + '题：设 $x_' + i + '^2+y^2=r^2$，求 $\\frac{\\mathrm{d}y}{\\mathrm{d}x}$ 的值，并讨论 $\\Delta>0$ 的情形。');
+    }
+    var src = paras.join('\n\n');
+    var blocks = window.InkParser.parse(src);
+    var t0 = performance.now();
+    var res = await window.InkRender.render(blocks, baseSettings(), {});
+    var ms = performance.now() - t0;
+    assert(ms < 3000, 'too slow: ' + Math.round(ms) + 'ms');
+    return { pass: true, detail: Math.round(ms) + 'ms, ' + src.length + ' 字符, ' + res.canvases.length + ' 页' };
+  });
+
+  await t('性能：参数微调重绘 < 800ms', async function () {
+    var blocks = window.InkParser.parse(window.InkSamples.calculus);
+    var t0 = performance.now();
+    await window.InkRender.render(blocks, baseSettings({ jitter: 1.4 }), {});
+    var ms = performance.now() - t0;
+    assert(ms < 800, 'too slow: ' + Math.round(ms) + 'ms');
+    return { pass: true, detail: Math.round(ms) + 'ms' };
+  });
+
+  /* ---------- 7. 压力 ---------- */
+  await t('压力：连续 50 次参数变化渲染', async function () {
+    var blocks = window.InkParser.parse(window.InkSamples.calculus);
+    var papers = ['plain', 'ruled', 'grid', 'mi', 'kraft', 'letter'];
+    for (var i = 0; i < 50; i++) {
+      var r = await window.InkRender.render(blocks, baseSettings({
+        jitter: 0.2 + (i % 10) * 0.3, paper: papers[i % 6],
+        fontSize: 20 + (i % 20), seed: 1000 + i
+      }), {});
+      assert(r.canvases.length >= 1, 'iteration ' + i + ' failed');
+    }
+    return { pass: true, detail: '50/50 成功' };
+  });
+
+  /* ---------- 8. 降级 ---------- */
+  await t('降级：公式引擎不可用时不崩溃且保留原文', async function () {
+    window.InkMath.markFailed();
+    var blocks = window.InkParser.parse('公式 $a^2+b^2=c^2$ 与 $$\\int_0^1 x\\,dx$$ 结束');
+    var res = await window.InkRender.render(blocks, baseSettings(), {});
+    assert(res.canvases.length >= 1, 'crashed on degradation');
+    var text = JSON.stringify(res.lines.map(function (l) { return l.tokens.map(function (t) { return t.text || ''; }).join(''); }));
+    assert(text.indexOf('a^2+b^2=c^2') >= 0, 'latex source lost');
+    window.InkMath.markReady();
+    return { pass: true, detail: '已降级为原文，内容未丢失' };
+  });
+
+  /* ---------- 9. 导出 ---------- */
+  await t('导出：PNG 生成有效 Blob', async function () {
+    var blocks = window.InkParser.parse(window.InkSamples.equation);
+    var res = await window.InkRender.render(blocks, baseSettings(), {});
+    var blob = await window.InkExport.canvasToBlob(res.canvases[0], 'image/png');
+    assert(blob && blob.size > 3000, 'blob too small: ' + (blob && blob.size));
+    assert(blob.type === 'image/png', 'wrong type ' + blob.type);
+    return { pass: true, detail: Math.round(blob.size / 1024) + ' KB' };
+  });
+
+  await t('导出：PDF 多页生成有效文档', async function () {
+    assert(window.jspdf && window.jspdf.jsPDF, 'jsPDF missing');
+    var blocks = window.InkParser.parse(window.InkSamples.calculus);
+    var res = await window.InkRender.render(blocks, baseSettings(), {});
+    var doc = new window.jspdf.jsPDF({ unit: 'pt', format: [1240 * 0.48, 1754 * 0.48] });
+    res.canvases.forEach(function (cv, i) {
+      if (i > 0) doc.addPage([1240 * 0.48, 1754 * 0.48]);
+      doc.addImage(cv.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 1240 * 0.48, 1754 * 0.48);
+    });
+    var out = doc.output('blob');
+    assert(out && out.size > 5000, 'pdf too small: ' + (out && out.size));
+    return { pass: true, detail: res.canvases.length + ' 页, ' + Math.round(out.size / 1024) + ' KB' };
+  });
+
+  /* ---------- 10. 隐私 ---------- */
+  await t('隐私：无 fetch / XHR / Beacon / WebSocket', function () {
+    assert(window.__NET.fetch === 0, 'fetch called ' + window.__NET.fetch);
+    assert(window.__NET.xhr === 0, 'xhr called ' + window.__NET.xhr);
+    assert(window.__NET.beacon === 0, 'beacon called');
+    assert(window.__NET.ws === 0, 'websocket called');
+    return { pass: true, detail: '网络请求 0 次' };
+  });
+
+  await t('隐私：未写入 localStorage / sessionStorage', function () {
+    assert(window.__STORE.local === 0, 'localStorage writes: ' + window.__STORE.local);
+    assert(window.__STORE.session === 0, 'sessionStorage writes: ' + window.__STORE.session);
+    return { pass: true, detail: '存储写入 0 次' };
+  });
+
+  await t('稳定性：运行期无未捕获错误', function () {
+    assert(window.__ERRORS.length === 0, window.__ERRORS.join(' | '));
+    return { pass: true, detail: '0 个错误' };
+  });
+
+  /* ---------- 11. 字体 ---------- */
+  await t('字体：8 个本地字体文件全部加载成功', async function () {
+    assert(window.InkApp && window.InkApp.registerFonts, 'InkApp missing');
+    window.InkApp.setFontBase('../');
+    var res = await window.InkApp.registerFonts();
+    var bad = res.filter(function (r) { return !r.ok; });
+    assert(bad.length === 0, 'failed: ' + JSON.stringify(bad));
+    return { pass: true, detail: res.length + '/' + res.length + ' 加载成功' };
+  });
+
+  await t('字体：中文与拉丁字体均已就绪', async function () {
+    var checks = [
+      ['Caveat', 'Latin'], ['Rock Salt', 'Latin'], ['Reenie Beanie', 'Latin'],
+      ['Homemade Apple', 'Latin'], ['Patrick Hand', 'Latin'],
+      ['MaShanZheng', 'CJK'], ['LongCang', 'CJK']
+    ];
+    var bad = [];
+    for (var i = 0; i < checks.length; i++) {
+      await document.fonts.load('30px "' + checks[i][0] + '"');
+      if (!document.fonts.check('30px "' + checks[i][0] + '"')) bad.push(checks[i][0]);
+    }
+    assert(bad.length === 0, 'not ready: ' + bad.join(', '));
+    return { pass: true, detail: checks.length + ' 个手写字体 ready' };
+  });
+
+  /* ---------- 12. 公式潦草化 ---------- */
+  function hashCanvas2(cv) {
+    var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    var h = 2166136261;
+    for (var i = 0; i < d.length; i += 331) { h ^= d[i]; h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+
+  await t('潦草化：各档位均能正常渲染', async function () {
+    var src = '$$' + 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}' + '$$';
+    var blocks = window.InkParser.parse(src);
+    var seen = [];
+    for (var lv = 0; lv <= 1.0001; lv += 0.25) {
+      var r = await window.InkRender.render(blocks, baseSettings({ formulaScribble: lv }), {});
+      assert(r.canvases.length === 1, 'no canvas at ' + lv);
+      seen.push(Math.round(lv * 100) + '%');
+    }
+    return { pass: true, detail: '档位 ' + seen.join(' / ') };
+  });
+
+  await t('潦草化：强度不同 → 输出确实不同', async function () {
+    var blocks = window.InkParser.parse('$$' + '\\int_0^1 x^2\\,dx=\\frac{1}{3}' + '$$');
+    var a = await window.InkRender.render(blocks, baseSettings({ formulaScribble: 0 }), {});
+    var b = await window.InkRender.render(blocks, baseSettings({ formulaScribble: 1 }), {});
+    assert(hashCanvas2(a.canvases[0]) !== hashCanvas2(b.canvases[0]), 'scribble had no effect');
+    return { pass: true, detail: '0% 与 100% 输出不同' };
+  });
+
+  await t('潦草化：同种子可复现', async function () {
+    var blocks = window.InkParser.parse('$$' + '\\sum_{i=1}^{n} i^2=\\frac{n(n+1)(2n+1)}{6}' + '$$');
+    var a = await window.InkRender.render(blocks, baseSettings({ formulaScribble: 0.7 }), {});
+    var b = await window.InkRender.render(blocks, baseSettings({ formulaScribble: 0.7 }), {});
+    assert(hashCanvas2(a.canvases[0]) === hashCanvas2(b.canvases[0]), 'not reproducible');
+    return { pass: true, detail: '同种子输出一致' };
+  });
+
+  await t('潦草化：默认 50% 下公式仍有足够墨迹', async function () {
+    var blocks = window.InkParser.parse('$$' + 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}' + '$$');
+    var r = await window.InkRender.render(blocks, baseSettings({ formulaScribble: 0.5 }), {});
+    var cv = r.canvases[0];
+    var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    var ink = 0;
+    for (var i = 0; i < d.length; i += 4 * 13) if (d[i] < 170) ink++;
+    assert(ink > 40, 'formula too faint, ink=' + ink);
+    return { pass: true, detail: 'ink samples=' + ink };
+  });
+
+  /* ---------- 13. 自定义字体与回退 ---------- */
+  await t('自定义字体：addCustomFont 可注册新字体', function () {
+    assert(window.InkRender.addCustomFont, 'addCustomFont missing');
+    window.InkRender.addCustomFont('testfont', 'Caveat', '测试字体');
+    assert(window.InkRender.FONTS['testfont'], 'font not registered');
+    return { pass: true, detail: '已注册：' + window.InkRender.FONTS['testfont'].label };
+  });
+
+  await t('字体回退：拉丁字体渲染中文不报错且有输出', async function () {
+    var blocks = window.InkParser.parse('中文内容与 ' + '$' + 'x^2' + '$' + ' 混排');
+    var r = await window.InkRender.render(blocks, baseSettings({ fontKey: 'caveat' }), {});
+    assert(r.canvases.length >= 1, 'failed');
+    var cv = r.canvases[0];
+    var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    var ink = 0;
+    for (var i = 0; i < d.length; i += 4 * 29) if (d[i] < 170) ink++;
+    assert(ink > 20, 'nothing drawn, ink=' + ink);
+    return { pass: true, detail: 'ink samples=' + ink };
+  });
+
+  /* ---------- 14. 公式宽度回归（防止再次出现坐标空间错配） ---------- */
+  function inkColumns(cv, sy, sh) {
+    var W = cv.width;
+    var img = cv.getContext('2d').getImageData(0, sy, W, sh).data;
+    var cols = new Array(W).fill(0);
+    for (var yy = 0; yy < sh; yy++) for (var xx = 0; xx < W; xx++) { var i = (yy * W + xx) * 4; if (img[i] < 150) cols[xx]++; }
+    return cols;
+  }
+  function runsFrom(cols) {
+    var runs = [], st = -1;
+    for (var x = 0; x < cols.length; x++) {
+      if (cols[x] > 0 && st < 0) st = x;
+      else if (cols[x] === 0 && st >= 0) { runs.push([st, x - 1]); st = -1; }
+    }
+    if (st >= 0) runs.push([st, cols.length - 1]);
+    var merged = [];
+    for (var i = 0; i < runs.length; i++) {
+      if (merged.length && runs[i][0] - merged[merged.length - 1][1] <= 20) merged[merged.length - 1][1] = runs[i][1];
+      else merged.push([runs[i][0], runs[i][1]]);
+    }
+    return merged;
+  }
+
+  await t('回归：整行无异常空洞（公式未被裁切）', async function () {
+    var s = baseSettings({ jitter: 0, rotateDeg: 0, sizeVary: 0, baselineDrift: 0, formulaScribble: 0.5, inkColor: '#000000' });
+    var line = '对于一般形式 ' + "$" + 'ax^2+bx+c=0\\ (a\\neq 0)' + "$" + '，两边同除以 ' + "$" + 'a' + "$" + '：';
+    var res = await window.InkRender.render(window.InkParser.parse(line), s, {});
+    var merged = runsFrom(inkColumns(res.canvases[0], s.marginTop - 20, 90));
+    assert(merged.length > 0, 'no ink found');
+    var maxGap = 0;
+    for (var i = 1; i < merged.length; i++) maxGap = Math.max(maxGap, merged[i][0] - merged[i - 1][1]);
+    assert(maxGap < s.fontSize * 1.6, 'hole in line: maxGap=' + maxGap + ' runs=' + JSON.stringify(merged));
+    return { pass: true, detail: '最大空隙 ' + maxGap + 'px' };
+  });
+
+  await t('回归：公式绘制宽度 ≈ 排版宽度（误差 < 12%）', async function () {
+    var s = baseSettings({ jitter: 0, rotateDeg: 0, sizeVary: 0, baselineDrift: 0, formulaScribble: 0.5 });
+    var latex = 'ax^2+bx+c=0\\ (a\\neq 0)';
+    var res = await window.InkRender.render(window.InkParser.parse("$" + latex + "$"), s, {});
+    var tk = null;
+    for (var i = 0; i < res.lines.length; i++) for (var j = 0; j < res.lines[i].tokens.length; j++) {
+      if (res.lines[i].tokens[j].kind === 'math') tk = res.lines[i].tokens[j];
+    }
+    assert(tk, 'no math token');
+    var merged = runsFrom(inkColumns(res.canvases[0], s.marginTop - 20, 90));
+    var drawn = merged.length ? (merged[merged.length - 1][1] - merged[0][0] + 1) : 0;
+    var err = Math.abs(drawn - tk.w) / tk.w;
+    assert(err < 0.12, 'width mismatch: drawn=' + drawn + ' expected=' + tk.w.toFixed(1) + ' err=' + (err * 100).toFixed(1) + '%');
+    return { pass: true, detail: '绘制 ' + drawn + 'px vs 排版 ' + tk.w.toFixed(0) + 'px（误差 ' + (err * 100).toFixed(1) + '%）' };
+  });
+
+  var passN = results.filter(function (r) { return r.pass; }).length;
+  document.getElementById('results').textContent = 'RESULTS_JSON:' + JSON.stringify({
+    total: results.length, pass: passN, fail: results.length - passN, results: results
+  });
+})();
+</script>
+</body></html>

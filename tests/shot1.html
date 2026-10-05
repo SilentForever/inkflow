@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#e8ebf0}canvas{display:block;width:760px;height:auto;box-shadow:0 10px 30px rgba(0,0,0,.18)}</style>
+</head><body>
+<script src="../vendor/jspdf.umd.min.js"></script>
+<script src="../vendor/mathjax/tex-svg.js"></script>
+<script src="../js/prng.js"></script><script src="../js/parser.js"></script>
+<script src="../js/mathrender.js"></script><script src="../js/paper.js"></script>
+<script src="../js/renderer.js"></script><script src="../js/exporter.js"></script>
+<script src="../js/samples.js"></script>
+<script src="../js/app.js"></script>
+<script>
+(async function(){
+  await window.InkApp.registerFonts();
+  await document.fonts.ready;
+  await new Promise(function(r){var t0=Date.now();(function p(){if(window.InkMath.isAvailable())return r();if(Date.now()-t0>25000)return r();setTimeout(p,100)})();});
+  var blocks = window.InkParser.parse("# 一元二次方程 求根公式\n\n## 一、推导\n\n对于一般形式 $ax^2+bx+c=0\\ (a\\neq 0)$，配方可得：\n\n$$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$$\n\n其中 $\\Delta=b^2-4ac$ 称为判别式。\n\n## 二、例题\n\n求解 $2x^2-4x-6=0$。\n\n1. 判别式 $\\Delta=(-4)^2-4\\times 2\\times(-6)=64>0$\n2. 代入公式 $x=\\dfrac{4\\pm\\sqrt{64}}{4}=\\dfrac{4\\pm 8}{4}$\n3. 得 $x_1=3,\\ x_2=-1$");
+  var res = await window.InkRender.render(blocks, {"pageSize":"a4","paper":"ruled","fontKey":"mashanzheng","fontSize":28,"lineHeight":1.9,"letterSpacing":0.3,"jitter":1.1,"rotateDeg":0.55,"sizeVary":0.02,"baselineDrift":0.7,"inkColor":"#1b2a5e","inkAmount":0.93,"inkVary":0.09,"formulaScribble":0.5,"formulaScale":1,"seed":20240517,"marginTop":88,"marginBottom":79,"marginLeft":88,"marginRight":70,"showHeader":true,"headerText":"第 3 次作业","showDate":false,"showFooter":true,"showTotalPages":true}, {});
+  var cv = res.canvases[0];
+  cv.style.width='760px'; cv.style.height='auto';
+  document.body.appendChild(cv);
+  window.__DONE = true;
+})();
+</script></body></html>

@@ -1,0 +1,64 @@
+<!doctype html><html><head><meta charset="utf-8"><title>accuracy</title></head><body><pre id="r">RUNNING</pre>
+<script src="../vendor/jspdf.umd.min.js"></script>
+<script src="../vendor/mathjax/tex-svg.js"></script>
+<script src="../js/prng.js"></script><script src="../js/parser.js"></script>
+<script src="../js/mathrender.js"></script><script src="../js/paper.js"></script>
+<script src="../js/renderer.js"></script><script src="../js/exporter.js"></script>
+<script src="../js/samples.js"></script><script src="../js/app.js"></script>
+<script src="corpus.js"></script>
+<script>
+(async function(){
+  var R=[]; function add(doc,chk,ok,det){ R.push({doc:doc,chk:chk,ok:!!ok,det:det||""}); }
+  await window.InkApp.registerFonts(); await document.fonts.ready;
+  await new Promise(function(res){var t0=Date.now();(function p(){if(window.InkMath.isAvailable())return res();if(Date.now()-t0>25000)return res();setTimeout(p,100)})();});
+  var S={pageSize:"a4",paper:"ruled",fontKey:"mashanzheng",fontSize:28,lineHeight:1.9,letterSpacing:0.3,
+    jitter:1.1,rotateDeg:0.55,sizeVary:0.02,baselineDrift:0.7,inkColor:"#1b2a5e",inkAmount:0.93,inkVary:0.09,
+    formulaScribble:0.5,formulaScale:1,seed:20240517,marginTop:88,marginBottom:79,marginLeft:88,marginRight:70,
+    showHeader:true,headerText:"作业",showDate:false,showFooter:true,showTotalPages:true};
+  var CW=S_PAGE_W(); function S_PAGE_W(){return 1240-88-70;}
+  function isNum(v){return typeof v==="number"&&isFinite(v);}
+  for(var di=0;di<window.InkCorpus.length;di++){
+    var doc=window.InkCorpus[di]; var name=doc.name;
+    var blocks=null,res=null,err=null;
+    try{ blocks=window.InkParser.parse(doc.md); }catch(e){ err=e; }
+    add(name,"parse",!err&&!!blocks,err?String(err):("blocks="+(blocks?blocks.length:0)));
+    if(err||!blocks){ continue; }
+    try{ res=await window.InkRender.render(blocks,S,{}); }catch(e){ err=e; }
+    add(name,"render",!err&&!!res&&res.canvases.length>=1,err?String(err):("pages="+(res?res.canvases.length:0)));
+    if(err||!res){ continue; }
+    var lines=res.lines;
+    var deg=0,nan=0,ovf=0,maxOvf=0;
+    for(var i=0;i<lines.length;i++){ var ln=lines[i]; var tw=0;
+      for(var j=0;j<ln.tokens.length;j++){ var t=ln.tokens[j];
+        if(t.degraded) deg++;
+        if(!isNum(t.w)||!isNum(t.h)||t.w<0||t.h<0) nan++;
+        tw+=t.w; }
+      var avail=CW-(ln.indent||0);
+      var over=tw-avail; if(over>1){ ovf++; if(over>maxOvf) maxOvf=over; } }
+    add(name,"noDegradedFormula",deg===0,"degraded="+deg);
+    add(name,"noNaN",nan===0,"bad="+nan);
+    add(name,"noOverflow",ovf===0,"overflowLines="+ovf+" max="+Math.round(maxOvf));
+    var pages=window.InkRender.paginate(lines,S); var fit=true; var maxBottom=0;
+    for(var p=0;p<pages.length;p++){ var y=S.marginTop;
+      for(var k=0;k<pages[p].length;k++){ var lh=window.InkRender.lineHeightFor(pages[p][k],S);
+        var maxTok=0; var tk=pages[p][k].tokens;
+        for(var q=0;q<tk.length;q++){ var th=(tk[q].kind==="math")?tk[q].h:tk[q].size; if(th>maxTok) maxTok=th; }
+        if(lh+0.5<maxTok){ fit=false; }
+        y+=lh; }
+      if(y>maxBottom) maxBottom=y; }
+    add(name,"lineBoxFitsContent",fit,"");
+    add(name,"withinPage",maxBottom<=S_PAGE_H()-S.marginBottom+1,"bottom="+Math.round(maxBottom)+" limit="+(S_PAGE_H()-S.marginBottom));
+    function S_PAGE_H(){return 1754;}
+    var cv=res.canvases[0]; var d=cv.getContext("2d").getImageData(0,0,cv.width,cv.height).data;
+    var ink=0; for(var z=0;z<d.length;z+=4*53){ if(d[z]<200) ink++; }
+    var expectLines=0; for(var b=0;b<blocks.length;b++){ var ty=blocks[b].type; if(ty==="para"||ty==="heading"||ty==="bullet"||ty==="ordered"||ty==="mathblock"||ty==="code") expectLines++; }
+    var contentLines=0; for(var i2=0;i2<lines.length;i2++){ if(lines[i2].tokens.length>0) contentLines++; }
+    add(name,"contentPreserved",contentLines>=expectLines,"lines="+contentLines+" expect>="+expectLines);
+    add(name,"hasInk",doc.md.trim()===""?true:(ink>0),"ink="+ink);
+  }
+  var pass=R.filter(function(x){return x.ok;}).length;
+  var out={total:R.length,pass:pass,fail:R.length-pass,acc:+(pass/R.length*100).toFixed(3)};
+  out.failures=R.filter(function(x){return !x.ok;});
+  document.getElementById("r").textContent="ACC_JSON:"+JSON.stringify(out);
+})();
+</script></body></html>

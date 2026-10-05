@@ -1,0 +1,10 @@
+# 依赖与构建产物（本项目无构建步骤，以下为通用忽略）
+.local/
+node_modules/
+.vercel/
+.DS_Store
+Thumbs.db
+*.log
+
+# 测试输出（截图可按需保留，这里忽略中间产物）
+tests/out/*.tmp.png
