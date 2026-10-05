@@ -126,7 +126,7 @@
 
   /* ---------- 公式字形字体链 ----------
    * 公式里的数字与符号也要写成手写体。顺序：
-   *   1) 当前正文字体  2) Zen Kurenaido（数学符号覆盖 66/66，专职兜底）  3) 其余中文手写体
+   *   1) 当前正文字体  2) Zen Kurenaido（圆珠笔手写，符号覆盖好，专职兜底）  3) 其余中文手写体
    * 都不含该字符时，mathrender 会保留 MathJax 原字形（内容绝不丢失）。 */
   var MATH_FALLBACK = ["MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
   function mathFontsOf(s) {

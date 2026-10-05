@@ -121,7 +121,7 @@ index.html  css/  js/  fonts/  vendor/  vercel.json
 **Q：需要设置 `VERCEL_FORCE_NO_BUILD` 之类的环境变量吗？**
 不需要。没有构建步骤，Vercel 检测不到 `package.json` 时会当作纯静态目录直接发布。
 
-**Q：字体 14MB 会不会超限？**
+**Q：字体 47MB 会不会超限？**
 不会。Vercel 单次部署体积上限远大于此；且 `vercel.json` 已给 `/fonts`、`/vendor` 设了 7 天缓存，
 首访之后不再重复下载。
 
