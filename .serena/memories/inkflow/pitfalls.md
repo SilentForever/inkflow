@@ -1,0 +1,28 @@
+# InkFlow 坑与教训（都踩过）
+
+## 运行/测试环境
+- **虚拟时间陷阱**：headless Chrome `--virtual-time-budget` 下 `Date.now()` 不随 `await` 前进；`while(Date.now()-t0<500){}` 忙等会**死循环**（整轮超时无输出）→ 必须用 `await sleep(ms)`。
+- headless Chrome 跑完长测试（e2e）后**可能不自动退出**（挂住 15min+，但 DOM 结果其实已生成）。判断方法：采样 `wmic process ... UserModeTime`，CPU 归零 = 已卡住；杀掉进程后管道会 flush 出结果。用 `--dump-dom` 取 `<pre>` 里的 JSON。
+- 本机 `file://` 下 `@font-face`/classic `<script>`/Canvas/Blob URL 可用；**ES Module、fetch/XHR、Worker 被禁**。
+
+## CSS
+- `hidden` 属性会被作者样式 `display:flex` 覆盖 → 全局 `[hidden]{display:none !important;}`。
+- 网格行必须确定高度：`.main{grid-template-rows:minmax(0,1fr)}`，否则 flex:1 子项塌成 0。
+- 窄屏（≤820px）单栏堆叠时左栏会塌成 0 高度 → 给 `.col` 确定高度 `min(82vh,760px)`。
+
+## 公式
+- 旧实现用墨迹高度反推字号 → 括号/根号被拉大；已改为变换矩阵推导（见 `mem:inkflow/architecture`）。
+- 公式墨色必须与正文一致（`textColorOf(s)`）；有回归断言。
+- `$'`/`$&` 等替换串会破坏代码 → 用 `split().join()`。
+- MathJax SVG 里的 transform 必须**追加**在原有 transform 之后，不能覆盖（否则丢失字形定位）。
+
+## 本机网络/凭据（Windows 主机 ARTlab）
+- 本地代理 `127.0.0.1:7897` 经常未启动 → 走代理的请求全挂；可直连（example.com 可通）。
+- **`github.com` / `api.github.com` 本机 DNS 解析失败**（npm registry 正常）。绕过：`curl --resolve api.github.com:443:140.82.112.6`；`git` 走 SSH（见下）。
+- **推送 GitHub**：gh token 会失效；SSH 走 IP 可用（已认证 `SilentForever`）。已写 `~/.ssh/config` 的 `Host github.com → HostName 140.82.112.3` + `git config url."git@github.com:".insteadOf "https://github.com/"`。
+- **Vercel**：`%APPDATA%\com.vercel.cli\Data\auth.json` 的 token 直连 API 报 `invalidToken`，但 **CLI 会自动刷新** → 用 `vercel ls/inspect` 而非直连 API。
+- Vercel 边缘 IP（`76.76.21.x`）直连 TLS 被重置；`ink.1funnytime.xyz` 等域名本机不可直访。
+- 云浏览器后端不可达（超时）→ 线上核验改用 Vercel API/CLI 对比 commit。
+
+## 文档维护
+- 改字体/字号后要同步 README/DEPLOY/计划书里的数字（字体数、加载体积、符号覆盖率），历史轮次记录不要改。
