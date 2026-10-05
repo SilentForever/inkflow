@@ -110,11 +110,9 @@
   }
 
   /* ---------- 公式字形字体链 ----------
-   * 公式里的数字与符号也要写成手写体。候选顺序：
-   *   1) 当前正文字体（若含该字符）
-   *   2) Zen Kurenaido —— 实测数学符号覆盖 66/66，是最可靠的兜底
-   *   3) 其余中文手写体
-   * 都不含该字符时，mathrender 会保留 MathJax 原字形（保证正确性）。 */
+   * 公式里的数字与符号也要写成手写体。顺序：
+   *   1) 当前正文字体  2) Zen Kurenaido（数学符号覆盖 66/66，专职兜底）  3) 其余中文手写体
+   * 都不含该字符时，mathrender 会保留 MathJax 原字形（内容绝不丢失）。 */
   var MATH_FALLBACK = ["Zen Kurenaido", "Klee One", "Yomogi", "LiuJianMaoCao", "MaShanZheng", "LongCang", "ZhiMangXing"];
   function mathFontsOf(s) {
     var cur = (FONTS[s.fontKey] || {}).family;

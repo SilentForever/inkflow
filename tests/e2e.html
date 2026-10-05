@@ -523,15 +523,27 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     });
 
     await t("交互：公式手写度滑杆改变输出", async function(){
+      /* 抖动幅度很小，用逐像素哈希才测得出来 */
+      function hashFine(cv){
+        var w = cv.width, h = Math.min(500, cv.height);
+        var d = cv.getContext("2d").getImageData(0, 0, w, h).data;
+        var hsh = 2166136261, ink = 0;
+        for (var i = 0; i < d.length; i += 4) {
+          var v = d[i];
+          if (v < 200) ink++;
+          hsh ^= v; hsh = Math.imul(hsh, 16777619);
+        }
+        return { h: hsh >>> 0, ink: ink };
+      }
       $("formulaHand").value = "0"; $("formulaHand").dispatchEvent(new Event("input", {bubbles:true}));
-      await sleep(1100);
-      var a = hashAll(document.querySelector("canvas"));
+      await sleep(1200);
+      var a = hashFine(document.querySelector("canvas"));
       $("formulaHand").value = "1"; $("formulaHand").dispatchEvent(new Event("input", {bubbles:true}));
-      await sleep(1100);
-      var b = hashAll(document.querySelector("canvas"));
-      if (a === b) throw new Error("formulaHand had no effect (" + a + ")");
+      await sleep(1200);
+      var b = hashFine(document.querySelector("canvas"));
+      if (a.h === b.h && a.ink === b.ink) throw new Error("formulaHand had no effect (h=" + a.h + " ink=" + a.ink + ")");
       if ($("formulaHandOut").textContent.indexOf("100") < 0) throw new Error("out=" + $("formulaHandOut").textContent);
-      return "0% → 100% 输出不同";
+      return "0% → 100% 输出不同（墨迹 " + a.ink + " → " + b.ink + "）";
     });
 
     await t("交互：公式大小滑杆生效", async function(){
