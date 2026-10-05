@@ -36,15 +36,16 @@
         </div>
       </div>
 
-      <!-- Word 式工具栏：左=视图切换，右=该视图的工具（不同时出现） -->
+      <!-- WPS 式工具栏：字体 / 字号 / 文字样式 + 输入模式（对应「开始」选项卡） -->
       <div class="input-toolbar">
-        <div class="seg view-seg" role="group" aria-label="输入视图">
-          <button type="button" class="seg-btn" id="modeEdit" aria-pressed="true">编辑</button>
-          <button type="button" class="seg-btn" id="modePreview" aria-pressed="false">预览</button>
-        </div>
-
-        <!-- 编辑视图工具：字体样式 + 字号（对应 Word 的「开始」选项卡） -->
         <div class="tool-group" id="sourceTools">
+          <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
+          <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
+          <span class="tool-sep" aria-hidden="true"></span>
+          <label class="tool-size" title="字号">
+            <input type="number" id="fontSize" class="font-size-input" min="12" max="96" step="1" value="28" aria-label="字号">
+            <span class="tool-size-unit">px</span>
+          </label>
           <span class="tool-sep" aria-hidden="true"></span>
           <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
           <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
@@ -53,14 +54,14 @@
             <input type="color" id="textColor" value="#1b2a5e">
             <span>字色</span>
           </label>
-          <label class="tool-size" title="字号">
-            <span class="tool-size-ico" aria-hidden="true">A</span>
-            <input type="range" id="fontSize" min="16" max="56" step="1" value="28">
-            <output id="fontSizeOut">28</output>
+          <label class="fmt-slider" title="文字缩放">
+            <span>缩放</span>
+            <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
+            <output id="textScaleOut">1.00×</output>
           </label>
         </div>
 
-        <!-- 批量队列工具：单篇 / 批量（只影响编辑视图） -->
+        <!-- 批量队列工具：单篇 / 批量 -->
         <div class="tool-group queue-seg" id="queueTools">
           <span class="tool-sep" aria-hidden="true"></span>
           <div class="seg" role="group" aria-label="输入模式">
@@ -70,17 +71,24 @@
         </div>
       </div>
 
-      <!-- 编辑视图：导入区 + （单篇编辑器 | 批量队列） -->
-      <div class="edit-view" id="editView">
+      <!-- 输入页签：导入（默认） / 编辑 -->
+      <div class="input-tabs" id="inputTabs" role="tablist" aria-label="输入方式">
+        <button type="button" class="tab-btn" id="tabImport" role="tab" aria-selected="true">导入</button>
+        <button type="button" class="tab-btn" id="tabEdit" role="tab" aria-selected="false">编辑</button>
+      </div>
+
+      <!-- 导入页：默认展示，导入 / 识别后自动切到「编辑」 -->
+      <div class="import-view" id="importView">
         <div class="import-panel">
           <div class="import-bar">
-            <button class="btn sm primary" id="importFile" type="button">导入文件</button>
-            <span class="import-sep" aria-hidden="true"></span>
-            <button class="btn sm" id="importImage" type="button">识别图片</button>
-            <button class="btn sm" id="importPaste" type="button">粘贴识别</button>
+            <button class="btn primary" id="importFile" type="button">导入文件</button>
+            <button class="btn" id="importImage" type="button">识别图片</button>
+            <button class="btn" id="importPaste" type="button">粘贴识别</button>
           </div>
           <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
         </div>
+      </div>
+
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
       <div class="import-status" id="importStatus" hidden></div>
@@ -103,55 +111,23 @@
         <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
       </div>
 
-        <div class="editor-wrap">
-          <label class="sr-only" for="source">文档内容</label>
-          <textarea id="source" spellcheck="false"
-            placeholder="在此粘贴 Markdown / LaTeX，或点上方按钮导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $...$"></textarea>
-          <div class="editor-foot">
-            <span id="counts">0 字符 · 0 行</span>
-            <span class="spacer"></span>
-            <span>Ctrl/⌘ + Enter 立即重绘</span>
-          </div>
+      <!-- 编辑页：单篇编辑器 -->
+      <div class="editor-wrap" id="editorWrap" hidden>
+        <label class="sr-only" for="source">文档内容</label>
+        <textarea id="source" spellcheck="false"
+          placeholder="在此粘贴 Markdown / LaTeX，或点上方「导入」页签导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $...$"></textarea>
+        <div class="editor-foot">
+          <span id="counts">0 字符 · 0 行</span>
+          <span class="spacer"></span>
+          <span>Ctrl/⌘ + Enter 立即重绘</span>
         </div>
-      </div><!-- /edit-view -->
-
-      <!-- 预览视图：只读查看当前文本（与编辑视图互斥） -->
-      <div class="input-preview" id="inputPreview" hidden></div>
+      </div>
     </section>
 
     <!-- ============ 中：参数 ============ -->
     <section class="col">
       <div class="col-head"><h2>手写参数</h2></div>
       <div class="col-body">
-
-        <!-- 字体：中英分别选择 -->
-        <div class="field">
-          <label for="fontCJK">中文字体</label>
-          <select id="fontCJK"></select>
-          <div class="hint">中文与中文标点使用该字体</div>
-        </div>
-
-        <div class="field">
-          <label for="fontLat">英文字体</label>
-          <select id="fontLat"></select>
-          <div class="hint">拉丁字母、数字使用该字体</div>
-        </div>
-
-        <!-- 文字样式：像 Word 一样 -->
-        <div class="field">
-          <label>文字样式</label>
-          <div class="style-bar">
-            <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
-            <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
-            <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
-            <span class="fmt-sep" aria-hidden="true"></span>
-            <label class="fmt-slider" title="文字缩放">
-              <span>缩放</span>
-              <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
-              <output id="textScaleOut">1.00×</output>
-            </label>
-          </div>
-        </div>
 
         <!-- 手写程度：三档 -->
         <div class="field">
@@ -332,9 +308,9 @@
   <div class="dlg-head">使用说明</div>
   <div class="dlg-body">
     <p><b>三步出结果</b></p>
-    <p>1. 左侧切到「编辑」，直接输入 Markdown，或点「导入文件 / 识别图片」导入 PDF / Word / 图片 / TXT；<br>
+    <p>1. 左侧「导入」页签可导入 PDF / Word / 图片 / TXT，也可切到「编辑」页签直接输入 Markdown；<br>
        2. 公式用 <code>$...$</code>（行内）或 <code>$...$</code>（独立成行）；<br>
-       3. 右侧实时预览，满意后点「导出 PNG / PDF」。左侧「预览」可只读查看原文。</p>
+       3. 右侧实时预览，满意后点「导出 PNG / PDF」。</p>
     <div class="divider"></div>
     <p><b>单篇 / 批量</b></p>
     <p>左栏工具栏右侧可切「单篇 / 批量」：单篇即时出稿；批量把多个文件排队，逐个转写并缓存（不刷新即可随时点看），勾选后可一次批量导出。</p>

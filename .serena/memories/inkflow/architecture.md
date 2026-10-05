@@ -16,8 +16,13 @@ vendor/jspdf.umd.min.js, vendor/mathjax/tex-svg.js, vendor/mammoth.browser.min.j
 - **20 款内置（11 中文 + 9 英文）**，`fonts/` 共 47.3MB。中文默认 `Zen Kurenaido`，拉丁默认 `Caveat`；中英双下拉分别选。
 - 字体文件清单：`js/app.js` 的 `FONT_FILES`（20 条）；字体定义：`js/renderer.js` 的 `FONTS`。
 
-## 左栏（Word 式工具栏，互斥不并排）
-`[编辑|预览]` 视图切换 ｜ `B I U · 字色 · 字号`（编辑视图专属） ｜ `[单篇|批量]` 队列模式（编辑视图子模式）。
+## 左栏（WPS 式工具栏 + 导入/编辑页签）
+顶部工具栏（对应 WPS「开始」选项卡）一行放：**中英字体下拉 · 字号数字框 · B/I/U · 字色 · 缩放**，右端是 `[单篇|批量]` 模式切换。
+工具栏下方是 `[导入|编辑]` 页签：**默认停在「导入」页**（整块区域为导入面板，导入完成自动切到「编辑」页）；「编辑」页是 Markdown/LaTeX 文本框，批量队列也挂在「编辑」页下。
+- 面板可见性统一由 `js/app.js` 的 `syncPanels()` 单点控制 `hidden`（导入页 / 编辑器 `#editorWrap` / 队列 `#queuePanel`），避免作者样式的 `display` 覆盖 `[hidden]`。
+- **字号是 `<input type="number">` 数字框**（12–96），由 `bindFontSize()` 绑定，**不是滑杆**。
+- 旧的「只读预览」视图（`#modeEdit/#modePreview/#inputPreview`）已删除——右侧已有真正的手写预览。
+- 测试文件 `tests/e2e.html` 内嵌了一份**左栏 DOM 副本**：改左栏结构时必须同步改它，否则 e2e 与真实页面不一致。
 
 ## 状态
 全部内存态；队列结果按 `settingsHash` 缓存（`js/queue.js`）；刷新即清空。

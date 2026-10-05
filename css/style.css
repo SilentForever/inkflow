@@ -286,11 +286,6 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 /* ============================================================
    文字样式工具条（加粗 / 斜体 / 下划线 / 字色 / 缩放）
    ============================================================ */
-.style-bar{
-  display:flex;flex-wrap:wrap;align-items:center;gap:6px;
-  padding:6px;border:1px solid var(--border);border-radius:var(--r-md);
-  background:var(--surface-2);
-}
 .fmt-btn{
   appearance:none;border:1px solid transparent;background:transparent;color:var(--text-2);
   width:30px;height:28px;border-radius:var(--r-sm);cursor:pointer;
@@ -330,21 +325,45 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 .tool-group{display:flex;align-items:center;gap:4px;}
 .tool-group[hidden]{display:none !important;}
 .tool-sep{width:1px;height:18px;background:var(--border-strong);margin:0 3px;}
-.tool-size{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font-size:12px;cursor:pointer;}
+.tool-size{display:inline-flex;align-items:center;gap:4px;color:var(--text-2);font-size:12px;cursor:pointer;}
 .tool-size-ico{font-weight:700;font-size:13px;}
-.tool-size input[type=range]{width:76px;}
-.tool-size output{min-width:20px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-3);}
-/* 编辑视图 / 预览视图：互斥 */
+/* 字体下拉（WPS 式工具栏内联） */
+.font-select{
+  width:auto;max-width:132px;padding:5px 8px;border:1px solid var(--border-strong);
+  border-radius:var(--r-sm);background:var(--surface);font-size:12.5px;color:var(--text);
+  cursor:pointer;
+}
+.font-select:hover{border-color:#b9c2d0;}
+/* 字号：数字输入框 + 单位 */
+.font-size-input{
+  width:56px;padding:5px 6px;border:1px solid var(--border-strong);border-radius:var(--r-sm);
+  background:var(--surface);font-size:12.5px;text-align:center;font-variant-numeric:tabular-nums;
+}
+.font-size-input:hover{border-color:#b9c2d0;}
+.tool-size-unit{color:var(--text-3);font-size:11.5px;}
+/* 输入页签：导入（默认） / 编辑 */
+.input-tabs{
+  display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--border);
+  background:var(--surface-2);flex:none;
+}
+.tab-btn{
+  appearance:none;border:0;background:transparent;color:var(--text-3);
+  font:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:color var(--dur),border-color var(--dur);
+}
+.tab-btn:hover{color:var(--text-2);}
+.tab-btn[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+/* 导入页 */
+.import-view{flex:1;min-height:0;overflow:auto;padding:14px 12px;}
+.import-view[hidden]{display:none !important;}
+.import-view .import-panel{margin:0;}
+.import-view .import-bar{flex-direction:column;align-items:stretch;gap:8px;}
+.import-view .import-bar .btn{width:100%;padding:10px 12px;font-size:13px;}
+/* 编辑视图 / 队列：互斥 */
 .edit-view{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:10px 10px 0;}
 .edit-view[hidden]{display:none !important;}
-.input-preview{
-  flex:1;min-height:0;overflow:auto;padding:16px 18px;
-  font-family:var(--font-mono);font-size:13px;line-height:1.85;color:var(--text);
-  white-space:pre-wrap;word-break:break-word;
-}
-.input-preview[hidden]{display:none !important;}
-.input-preview mark{background:rgba(255,205,86,.45);border-radius:3px;padding:0 2px;}
-.input-preview .pv-empty{color:var(--text-3);}
 .queue-panel{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0;}
 .queue-panel[hidden]{display:none !important;}
 .queue-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}

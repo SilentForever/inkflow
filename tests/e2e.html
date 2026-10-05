@@ -52,15 +52,16 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         </div>
       </div>
 
-      <!-- Word 式工具栏：左=视图切换，右=该视图的工具（不同时出现） -->
+      <!-- WPS 式工具栏：字体 / 字号 / 文字样式 + 输入模式（对应「开始」选项卡） -->
       <div class="input-toolbar">
-        <div class="seg view-seg" role="group" aria-label="输入视图">
-          <button type="button" class="seg-btn" id="modeEdit" aria-pressed="true">编辑</button>
-          <button type="button" class="seg-btn" id="modePreview" aria-pressed="false">预览</button>
-        </div>
-
-        <!-- 编辑视图工具：字体样式 + 字号（对应 Word 的「开始」选项卡） -->
         <div class="tool-group" id="sourceTools">
+          <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
+          <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
+          <span class="tool-sep" aria-hidden="true"></span>
+          <label class="tool-size" title="字号">
+            <input type="number" id="fontSize" class="font-size-input" min="12" max="96" step="1" value="28" aria-label="字号">
+            <span class="tool-size-unit">px</span>
+          </label>
           <span class="tool-sep" aria-hidden="true"></span>
           <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
           <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
@@ -69,14 +70,14 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
             <input type="color" id="textColor" value="#1b2a5e">
             <span>字色</span>
           </label>
-          <label class="tool-size" title="字号">
-            <span class="tool-size-ico" aria-hidden="true">A</span>
-            <input type="range" id="fontSize" min="16" max="56" step="1" value="28">
-            <output id="fontSizeOut">28</output>
+          <label class="fmt-slider" title="文字缩放">
+            <span>缩放</span>
+            <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
+            <output id="textScaleOut">1.00×</output>
           </label>
         </div>
 
-        <!-- 批量队列工具：单篇 / 批量（只影响编辑视图） -->
+        <!-- 批量队列工具：单篇 / 批量 -->
         <div class="tool-group queue-seg" id="queueTools">
           <span class="tool-sep" aria-hidden="true"></span>
           <div class="seg" role="group" aria-label="输入模式">
@@ -86,17 +87,24 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         </div>
       </div>
 
-      <!-- 编辑视图：导入区 + （单篇编辑器 | 批量队列） -->
-      <div class="edit-view" id="editView">
+      <!-- 输入页签：导入（默认） / 编辑 -->
+      <div class="input-tabs" id="inputTabs" role="tablist" aria-label="输入方式">
+        <button type="button" class="tab-btn" id="tabImport" role="tab" aria-selected="true">导入</button>
+        <button type="button" class="tab-btn" id="tabEdit" role="tab" aria-selected="false">编辑</button>
+      </div>
+
+      <!-- 导入页：默认展示，导入 / 识别后自动切到「编辑」 -->
+      <div class="import-view" id="importView">
         <div class="import-panel">
           <div class="import-bar">
-            <button class="btn sm primary" id="importFile" type="button">导入文件</button>
-            <span class="import-sep" aria-hidden="true"></span>
-            <button class="btn sm" id="importImage" type="button">识别图片</button>
-            <button class="btn sm" id="importPaste" type="button">粘贴识别</button>
+            <button class="btn primary" id="importFile" type="button">导入文件</button>
+            <button class="btn" id="importImage" type="button">识别图片</button>
+            <button class="btn" id="importPaste" type="button">粘贴识别</button>
           </div>
           <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
         </div>
+      </div>
+
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
       <div class="import-status" id="importStatus" hidden></div>
@@ -119,55 +127,23 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
       </div>
 
-        <div class="editor-wrap">
-          <label class="sr-only" for="source">文档内容</label>
-          <textarea id="source" spellcheck="false"
-            placeholder="在此粘贴 Markdown / LaTeX，或点上方按钮导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $...$"></textarea>
-          <div class="editor-foot">
-            <span id="counts">0 字符 · 0 行</span>
-            <span class="spacer"></span>
-            <span>Ctrl/⌘ + Enter 立即重绘</span>
-          </div>
+      <!-- 编辑页：单篇编辑器 -->
+      <div class="editor-wrap" id="editorWrap" hidden>
+        <label class="sr-only" for="source">文档内容</label>
+        <textarea id="source" spellcheck="false"
+          placeholder="在此粘贴 Markdown / LaTeX，或点上方「导入」页签导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $...$"></textarea>
+        <div class="editor-foot">
+          <span id="counts">0 字符 · 0 行</span>
+          <span class="spacer"></span>
+          <span>Ctrl/⌘ + Enter 立即重绘</span>
         </div>
-      </div><!-- /edit-view -->
-
-      <!-- 预览视图：只读查看当前文本（与编辑视图互斥） -->
-      <div class="input-preview" id="inputPreview" hidden></div>
+      </div>
     </section>
 
     <!-- ============ 中：参数 ============ -->
     <section class="col">
       <div class="col-head"><h2>手写参数</h2></div>
       <div class="col-body">
-
-        <!-- 字体：中英分别选择 -->
-        <div class="field">
-          <label for="fontCJK">中文字体</label>
-          <select id="fontCJK"></select>
-          <div class="hint">中文与中文标点使用该字体</div>
-        </div>
-
-        <div class="field">
-          <label for="fontLat">英文字体</label>
-          <select id="fontLat"></select>
-          <div class="hint">拉丁字母、数字使用该字体</div>
-        </div>
-
-        <!-- 文字样式：像 Word 一样 -->
-        <div class="field">
-          <label>文字样式</label>
-          <div class="style-bar">
-            <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
-            <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
-            <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
-            <span class="fmt-sep" aria-hidden="true"></span>
-            <label class="fmt-slider" title="文字缩放">
-              <span>缩放</span>
-              <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
-              <output id="textScaleOut">1.00×</output>
-            </label>
-          </div>
-        </div>
 
         <!-- 手写程度：三档 -->
         <div class="field">
@@ -447,40 +423,44 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "中文不变、英文换字体 → 输出不同";
     });
 
-    await t("模式：非当前模式的面板必须真正不占位（回归）", async function(){
+    await t("面板：导入页 / 编辑器 / 队列 互斥且默认停在导入页", async function(){
       /* 曾因作者样式的 display:flex 覆盖 [hidden] 的 display:none，
-         导致单篇模式下队列面板也显示出来 */
-      var qp = $("queuePanel"), ev = $("editView"), ip = $("inputPreview");
-      function vis(el){ return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
-      if (getComputedStyle(qp).display !== "none") throw new Error("单篇模式下队列面板 display=" + getComputedStyle(qp).display);
-      if (vis(qp)) throw new Error("单篇模式下队列面板仍占位");
-      if (!vis(ev)) throw new Error("单篇模式下编辑视图应可见");
-      if (vis(ip)) throw new Error("编辑视图下预览面板不该占位");
-      $("modeQueue").click();
-      await sleep(500);
-      if (!vis(qp)) throw new Error("队列模式下队列面板应可见");
-      if (!vis(ev)) throw new Error("队列模式下编辑视图仍应可见（批量是编辑视图的子模式）");
-      $("modeSingle").click();
-      await sleep(500);
-      if (vis(qp)) throw new Error("切回单篇后队列面板仍占位");
-      return "面板互斥，且 hidden 生效";
+         导致非当前面板也显示出来；改为统一由 syncPanels 控制 */
+      function vis(id){ var el = $(id); return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
+      /* 默认：导入页可见，编辑器与队列都不占位 */
+      if (!vis("importView")) throw new Error("默认应停在导入页");
+      if (vis("editorWrap")) throw new Error("默认导入页下编辑器不该占位");
+      if (vis("queuePanel")) throw new Error("默认导入页下队列不该占位");
+      /* 切到「编辑」页（单篇）→ 编辑器可见 */
+      $("tabEdit").click(); await sleep(300);
+      if (vis("importView") || !vis("editorWrap")) throw new Error("编辑页未生效");
+      if (vis("queuePanel")) throw new Error("单篇下队列不该占位");
+      /* 批量 → 队列面板可见、编辑器隐藏 */
+      $("modeQueue").click(); await sleep(300);
+      if (!vis("queuePanel")) throw new Error("批量下队列应可见");
+      if (vis("editorWrap")) throw new Error("批量下编辑器不该占位");
+      /* 回单篇 */
+      $("modeSingle").click(); await sleep(300);
+      if (vis("queuePanel") || !vis("editorWrap")) throw new Error("切回单篇失败");
+      /* 回导入页 */
+      $("tabImport").click(); await sleep(300);
+      if (!vis("importView") || vis("editorWrap")) throw new Error("切回导入页失败");
+      return "导入 / 编辑 / 队列 三者互斥";
     });
 
-    await t("视图：编辑 / 预览 互斥切换（Word 式工具栏）", async function(){
+    await t("视图：导入 / 编辑 页签切换（WPS 式工具栏）", async function(){
       function vis(id){ var el = $(id); return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
-      if (!vis("editView") || vis("inputPreview")) throw new Error("默认应停在编辑视图");
-      $("modePreview").click();
-      await sleep(400);
-      if (vis("editView") || !vis("inputPreview")) throw new Error("预览视图未生效");
-      if (vis("sourceTools") || vis("queueTools")) throw new Error("预览视图不该显示编辑工具");
-      if (!$("inputPreview").textContent.length) throw new Error("预览应有内容");
-      $("modeEdit").click();
-      await sleep(400);
-      if (!vis("editView") || vis("inputPreview")) throw new Error("切回编辑视图失败");
-      if (!vis("sourceTools")) throw new Error("编辑视图应显示字体工具");
+      if ($("tabImport").getAttribute("aria-selected") !== "true") throw new Error("默认应选中「导入」");
+      $("tabEdit").click(); await sleep(300);
+      if ($("tabEdit").getAttribute("aria-selected") !== "true") throw new Error("编辑页签未选中");
+      if (!vis("editorWrap")) throw new Error("编辑页应显示编辑器");
       if (!$("fontSize")) throw new Error("字号控件应在左栏工具栏内");
       if (!$("textColor")) throw new Error("字色控件应在左栏工具栏内");
-      return "编辑/预览互斥，工具栏随视图切换";
+      if (!$("fontCJK") || !$("fontLat")) throw new Error("字体下拉应在左栏工具栏内");
+      if ($("fontSize").type !== "number") throw new Error("字号应为数字输入框而非滑杆");
+      $("tabImport").click(); await sleep(300);
+      if (!vis("importView")) throw new Error("导入页未生效");
+      return "导入 / 编辑页签互斥，工具栏含字体 / 字号 / 字色";
     });
 
     await t("模式：单篇 / 批量队列 可切换", async function(){
@@ -716,12 +696,16 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "自定义字体渲染成功 ink=" + ink;
     });
 
-    await t("交互：纸张与字号", async function(){
+    await t("交互：纸张与字号（WPS 式数字框）", async function(){
+      $("tabEdit").click(); await sleep(200);            /* 编辑器在「编辑」页 */
       $("paper").value = "grid"; $("paper").dispatchEvent(new Event("change", {bubbles:true}));
       $("fontSize").value = "40"; $("fontSize").dispatchEvent(new Event("input", {bubbles:true}));
       await sleep(1100);
-      if ($("fontSizeOut").textContent.indexOf("40") < 0) throw new Error($("fontSizeOut").textContent);
-      return "字号 " + $("fontSizeOut").textContent;
+      if ($("fontSize").value !== "40") throw new Error("fontSize=" + $("fontSize").value);
+      if (!window.InkApp.state || window.InkApp.state.fontSize !== 40) throw new Error("state.fontSize=" + (window.InkApp.state && window.InkApp.state.fontSize));
+      var cv = document.querySelector("canvas");
+      if (!cv || inkOf(cv) < 15) throw new Error("blank after font size change");
+      return "字号 " + $("fontSize").value + "px";
     });
 
     await t("导出：PNG 下载", async function(){

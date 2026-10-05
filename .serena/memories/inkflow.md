@@ -14,7 +14,7 @@
 - **推 `main` 后 Vercel Git 集成自动部署**；线上核验：`vercel ls` / `vercel inspect <url>`。
 
 ## 文档
-- `index.html` 应用入口；`计划书.md` 权威设计与逐轮记录（第二十一章为最新）；`README.md` 面向用户；`DEPLOY.md` 部署指南。
+- `index.html` 应用入口；`计划书.md` 权威设计与逐轮记录（第二十二章为最新：左栏改 WPS 式布局）；`README.md` 面向用户；`DEPLOY.md` 部署指南。
 
 ## 相关记忆
 - `mem:inkflow/architecture`、`mem:inkflow/pitfalls`、`mem:inkflow/testing`

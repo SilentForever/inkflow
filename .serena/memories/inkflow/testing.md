@@ -21,8 +21,9 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 ## e2e 主体同步
 `tests/e2e.html` 内嵌一份 index.html 的 body。**改了 index.html 的 DOM 必须重新同步 e2e 的 body**，否则结构断言失准。同步法：截取 `index.html` 的 `<body>…<script>` 之间内容，按 `[...idx.matchAll(/<script src="([^"]+)"/g)]` 原顺序重发 `<script src="../…">`。
 
-## 最近一次基线（a5af30b，全绿）
+## 最近一次基线（本轮，全绿）
 单元 **36/36**、e2e **29/29**、准确率 **378/378（100%）**；网络请求/本地存储 **0/0**。
+> e2e 自本轮起包含「导入页 / 编辑器 / 队列 三者互斥」与「导入 / 编辑 页签切换 + 字号为数字框」两条结构断言。
 
 ## 截图
 `tests/out/*.png`（本地复核用，大部分 gitignore；只保留少量入库）。临时探针页用完即删，不要留库。

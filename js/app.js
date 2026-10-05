@@ -253,6 +253,26 @@
     sync();
   }
 
+  /* 字号：WPS 式数字输入框（替代滑杆） */
+  function bindFontSize(id, key) {
+    var input = $(id);
+    if (!input) return;
+    input.value = state[key];
+    function sync() {
+      var v = parseFloat(input.value);
+      if (!isFinite(v)) return;
+      state[key] = v;
+    }
+    input.addEventListener("input", function () { sync(); scheduleRender(); });
+    input.addEventListener("change", function () {
+      var v = parseFloat(input.value);
+      if (!isFinite(v)) v = state[key];
+      v = Math.max(12, Math.min(96, Math.round(v)));
+      input.value = v; state[key] = v; scheduleRender(true);
+    });
+    sync();
+  }
+
   function bindSelect(id, key) {
     var el = $(id);
     if (!el) return;
@@ -329,7 +349,7 @@
     /* ---------- 常规控件 ---------- */
     bindSelect("pageSize", "pageSize");
     bindSelect("paper", "paper");
-    bindRange("fontSize", "fontSize", function (v) { return v + "px"; });
+    bindFontSize("fontSize", "fontSize");
     bindRange("lineHeight", "lineHeight", function (v) { return v.toFixed(2) + "×"; });
     bindRange("letterSpacing", "letterSpacing", function (v) { return v.toFixed(1) + " px"; });
     bindRange("formulaScale", "formulaScale", function (v) { return v.toFixed(2) + "×"; });
@@ -359,7 +379,7 @@
     var re = $("reseed");
     if (re) re.addEventListener("click", function () { state.seed = Math.floor(Math.random() * 1e9); if (seed) seed.value = String(state.seed); scheduleRender(true); toast("已生成新随机种子", "ok", 1600); });
 
-    if (els.source) els.source.addEventListener("input", function () { updateCounts(); if (view === "preview") renderInputPreview(); scheduleRender(); });
+    if (els.source) els.source.addEventListener("input", function () { updateCounts(); scheduleRender(); });
 
     var prev = $("prevPage"), next = $("nextPage");
     if (prev) prev.addEventListener("click", function () { paintPage(currentPage - 1); });
@@ -422,12 +442,17 @@
     if (hclose) hclose.addEventListener("click", function () { var d = $("helpDlg"); if (d) d.close(); });
 
     /* ---------- 导入：文件 / 图片 / 粘贴识别 ---------- */
+    function afterImport() {
+      updateCounts();
+      if (mode === "queue") { setView("edit"); renderQueueList(); }   // 批量：停在队列
+      else { setView("edit"); scheduleRender(true); }                 // 单篇：导入后自动进入「编辑」页
+    }
     if (global.InkImport) global.InkImport.bind({
       getSource: function () { return els.source || $("source"); },
       toast: toast,
       queueMode: function () { return mode === "queue"; },
       onItem: function (name, kind, text) { global.InkQueue.add(name, kind, text); },
-      onDone: function () { updateCounts(); if (mode === "queue") renderQueueList(); else scheduleRender(true); }
+      onDone: afterImport
     });
 
     /* ---------- 拖拽导入 ---------- */
@@ -438,7 +463,7 @@
       drop.addEventListener("drop", function (e) {
         var files = e.dataTransfer && e.dataTransfer.files;
         if (!files || !files.length) return;
-        if (global.InkImport) global.InkImport.handleFiles(files, { toast: toast, onDone: function () { updateCounts(); scheduleRender(true); } });
+        if (global.InkImport) global.InkImport.handleFiles(files, { toast: toast, onDone: afterImport });
       });
     }
 
@@ -461,59 +486,39 @@
     if (tcol) { tcol.value = state.textColor; tcol.addEventListener("input", function () { state.textColor = tcol.value; scheduleRender(); }); }
     bindRange("textScale", "textScale", function (v) { return v.toFixed(2) + "×"; });
 
-    /* ---------- 左栏视图：编辑 / 预览（互斥，对应 Word 的视图切换） ---------- */
-    var view = "edit";
-    function renderInputPreview() {
-      var pv = $("inputPreview"); if (!pv) return;
-      var txt = els.source ? els.source.value : "";
-      pv.innerHTML = "";
-      if (!txt.trim()) {
-        var d = document.createElement("div");
-        d.className = "pv-empty";
-        d.textContent = "（空）切到「编辑」视图输入或导入文档。";
-        pv.appendChild(d); return;
-      }
-      /* 轻量高亮：公式（行内 $..$ / 独立 $..$）与 Markdown 标题，不做解析渲染 */
-      var re = /(\$\$[\s\S]*?\$\$|\$[^$\n]*?\$|^#{1,6}\s.*$)/gm, last = 0, m;
-      var frag = document.createDocumentFragment();
-      while ((m = re.exec(txt))) {
-        if (m.index > last) frag.appendChild(document.createTextNode(txt.slice(last, m.index)));
-        var mk = document.createElement("mark"); mk.textContent = m[0]; frag.appendChild(mk);
-        last = m.index + m[0].length;
-      }
-      if (last < txt.length) frag.appendChild(document.createTextNode(txt.slice(last)));
-      pv.appendChild(frag);
+    /* ---------- 左栏页签：导入（默认） / 编辑 ---------- */
+    var view = "import";
+    var mode = "single";
+    /* 面板可见性统一由 syncPanels 决定：
+       导入页 = 导入面板；编辑页单篇 = 编辑器；编辑页批量 = 队列 */
+    function syncPanels() {
+      var ti = $("tabImport"), te = $("tabEdit");
+      var importTab = (view === "import");
+      if (ti) ti.setAttribute("aria-selected", importTab ? "true" : "false");
+      if (te) te.setAttribute("aria-selected", !importTab ? "true" : "false");
+      var iv = $("importView"), ew = $("editorWrap"), qp = $("queuePanel");
+      if (iv) iv.hidden = !importTab;
+      if (ew) ew.hidden = !(view === "edit" && mode === "single");
+      if (qp) qp.hidden = !(view === "edit" && mode === "queue");
     }
     function setView(v) {
-      view = v;
-      var me = $("modeEdit"), mp = $("modePreview");
-      if (me) me.setAttribute("aria-pressed", v === "edit" ? "true" : "false");
-      if (mp) mp.setAttribute("aria-pressed", v === "preview" ? "true" : "false");
-      var ev = $("editView"), pv = $("inputPreview");
-      if (ev) ev.hidden = (v !== "edit");
-      if (pv) pv.hidden = (v !== "preview");
-      /* 工具只属于「编辑」视图，预览时不显示 */
-      var st = $("sourceTools"), qt = $("queueTools");
-      if (st) st.hidden = (v !== "edit");
-      if (qt) qt.hidden = (v !== "edit");
-      if (v === "preview") renderInputPreview();
+      view = (v === "edit") ? "edit" : "import";
+      syncPanels();
+      if (view === "edit" && els.source) els.source.focus();
     }
-    if ($("modeEdit")) $("modeEdit").addEventListener("click", function () { setView("edit"); });
-    if ($("modePreview")) $("modePreview").addEventListener("click", function () { setView("preview"); });
+    if ($("tabImport")) $("tabImport").addEventListener("click", function () { setView("import"); });
+    if ($("tabEdit")) $("tabEdit").addEventListener("click", function () { setView("edit"); });
 
-    /* ---------- 单篇 / 批量 模式切换 ---------- */
-    var mode = "single";
+    /* ---------- 单篇 / 批量 模式切换（批量是「编辑」页的子模式） ---------- */
     function setMode(m) {
-      mode = m;
+      mode = (m === "queue") ? "queue" : "single";
       var ms = $("modeSingle"), mq = $("modeQueue");
-      if (ms) ms.setAttribute("aria-pressed", m === "single" ? "true" : "false");
-      if (mq) mq.setAttribute("aria-pressed", m === "queue" ? "true" : "false");
-      var qp = $("queuePanel"), ew = document.querySelector(".editor-wrap"), ef = document.querySelector(".editor-foot");
-      if (qp) qp.hidden = (m !== "queue");
-      if (ew) ew.style.display = (m === "queue") ? "none" : "";
-      if (ef) ef.style.display = (m === "queue") ? "none" : "";
+      if (ms) ms.setAttribute("aria-pressed", mode === "single" ? "true" : "false");
+      if (mq) mq.setAttribute("aria-pressed", mode === "queue" ? "true" : "false");
+      if (mode === "queue") view = "edit";   // 批量属于「编辑」页
+      syncPanels();
       renderQueueList();
-      if (m === "queue") { var cur = global.InkQueue.current(); if (cur) showQueueItem(cur.id); }
+      if (mode === "queue") { var cur = global.InkQueue.current(); if (cur) showQueueItem(cur.id); }
       else scheduleRender(true);
     }
     function showQueueItem(id) {
@@ -608,7 +613,7 @@
     }});
 
     setMode("single");
-    setView("edit");
+    setView("import");
 
     /* ---------- 生成按钮 + 自动重绘开关 ---------- */
     var regen = $("regenerate");
