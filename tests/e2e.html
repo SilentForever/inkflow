@@ -242,7 +242,6 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         <div class="stats" id="stats"><div class="stat"><b>—</b><span>等待输入</span></div></div>
 
       </div>
-      </div>
     </section>
 
     <!-- ============ 右：预览 ============ -->
@@ -405,6 +404,30 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       if (a === b) throw new Error("hand level had no effect (" + a + ")");
       if (document.querySelector('[data-hand][aria-pressed="true"]').getAttribute("data-hand") !== "casual") throw new Error("aria-pressed not updated");
       return "工整 → 随性 输出不同";
+    });
+
+    await t("结构：三栏均在 .main 内且无横向溢出", function(){
+      var main = document.querySelector(".main");
+      if (!main) throw new Error("no .main");
+      var kids = [].slice.call(main.children);
+      if (kids.length !== 3) throw new Error(".main 子元素应为 3 个，实际 " + kids.length + "（HTML 结构可能被多余的闭合标签破坏）");
+      var names = kids.map(function(k){ return k.className; }).join(" / ");
+      if (!/preview-col/.test(names)) throw new Error("preview-col 不在 .main 内: " + names);
+      var inputs = [].slice.call(document.querySelectorAll(".main > .col"));
+      if (inputs.length !== 3) throw new Error("直接子级 .col 应为 3 个，实际 " + inputs.length);
+      if (document.documentElement.scrollWidth > window.innerWidth + 2) {
+        throw new Error("出现横向滚动：" + document.documentElement.scrollWidth + " > " + window.innerWidth);
+      }
+      return names;
+    });
+
+    await t("结构：预览列工具栏未溢出", function(){
+      var head = document.querySelector(".preview-col .col-head");
+      if (!head) throw new Error("no preview col-head");
+      if (head.scrollWidth > head.clientWidth + 2) {
+        throw new Error("预览列头部溢出 " + head.scrollWidth + " > " + head.clientWidth);
+      }
+      return "头部宽 " + head.clientWidth + "，内容宽 " + head.scrollWidth;
     });
 
     await t("交互：生成按钮存在且可触发重绘", async function(){
