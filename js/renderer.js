@@ -6,24 +6,24 @@
   /* 字体按语言分组，供界面做二级选择：中文 / 英文 */
   var FONTS = {
     /* ---------- 中文手写（均为真实手写 / 书法体，OFL 免费可商用） ---------- */
-    mashanzheng:  { label: "马善政 毛笔楷书", css: '"MaShanZheng", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
-    kleeone:      { label: "Klee One 楷书",   css: '"Klee One", "KaiTi", cursive',      cjk: true,  lang: "cjk" },
-    longcang:     { label: "龙藏 行草",       css: '"LongCang", "KaiTi", cursive',      cjk: true,  lang: "cjk" },
-    zhimangxing:  { label: "志莽行书",        css: '"ZhiMangXing", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
-    zenkurenaido:{ label: "Zen 圆珠笔手写",   css: '"Zen Kurenaido", "KaiTi", cursive', cjk: true,  lang: "cjk" },
-    yomogi:       { label: "Yomogi 随性手写", css: '"Yomogi", "KaiTi", cursive',        cjk: true,  lang: "cjk" },
-    liujianmaocao:{ label: "刘建毛草 狂草",   css: '"LiuJianMaoCao", "KaiTi", cursive', cjk: true,  lang: "cjk" },
-    kai:          { label: "系统楷体",        css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk" },
+    mashanzheng:  { label: "马善政 毛笔楷书", css: '"MaShanZheng", "KaiTi", cursive',   cjk: true,  lang: "cjk" , family: "MaShanZheng"},
+    kleeone:      { label: "Klee One 楷书",   css: '"Klee One", "KaiTi", cursive',      cjk: true,  lang: "cjk" , family: "Klee One"},
+    longcang:     { label: "龙藏 行草",       css: '"LongCang", "KaiTi", cursive',      cjk: true,  lang: "cjk" , family: "LongCang"},
+    zhimangxing:  { label: "志莽行书",        css: '"ZhiMangXing", "KaiTi", cursive',   cjk: true,  lang: "cjk" , family: "ZhiMangXing"},
+    zenkurenaido:{ label: "Zen 圆珠笔手写",   css: '"Zen Kurenaido", "KaiTi", cursive', cjk: true,  lang: "cjk" , family: "Zen Kurenaido"},
+    yomogi:       { label: "Yomogi 随性手写", css: '"Yomogi", "KaiTi", cursive',        cjk: true,  lang: "cjk" , family: "Yomogi"},
+    liujianmaocao:{ label: "刘建毛草 狂草",   css: '"LiuJianMaoCao", "KaiTi", cursive', cjk: true,  lang: "cjk" , family: "LiuJianMaoCao"},
+    kai:          { label: "系统楷体",        css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk" , family: "KaiTi"},
     /* ---------- 英文手写 ---------- */
-    caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat" },
-    patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat" },
-    indie:        { label: "Indie 随记",      css: '"Indie Flower", cursive',           cjk: false, lang: "lat" },
-    kalam:        { label: "Kalam 洒脱",      css: '"Kalam", cursive',                  cjk: false, lang: "lat" },
-    shadows:      { label: "Shadows 轻柔",    css: '"Shadows Into Light", cursive',     cjk: false, lang: "lat" },
-    architects:   { label: "Architects 手绘", css: '"Architects Daughter", cursive',    cjk: false, lang: "lat" },
-    gloria:       { label: "Gloria 活泼",     css: '"Gloria Hallelujah", cursive',      cjk: false, lang: "lat" },
-    reenie:       { label: "Reenie 细瘦",     css: '"Reenie Beanie", cursive',          cjk: false, lang: "lat" },
-    rocksalt:     { label: "Rock Salt 粗犷",  css: '"Rock Salt", cursive',              cjk: false, lang: "lat" }
+    caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat" , family: "Caveat"},
+    patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat" , family: "Patrick Hand"},
+    indie:        { label: "Indie 随记",      css: '"Indie Flower", cursive',           cjk: false, lang: "lat" , family: "Indie Flower"},
+    kalam:        { label: "Kalam 洒脱",      css: '"Kalam", cursive',                  cjk: false, lang: "lat" , family: "Kalam"},
+    shadows:      { label: "Shadows 轻柔",    css: '"Shadows Into Light", cursive',     cjk: false, lang: "lat" , family: "Shadows Into Light"},
+    architects:   { label: "Architects 手绘", css: '"Architects Daughter", cursive',    cjk: false, lang: "lat" , family: "Architects Daughter"},
+    gloria:       { label: "Gloria 活泼",     css: '"Gloria Hallelujah", cursive',      cjk: false, lang: "lat" , family: "Gloria Hallelujah"},
+    reenie:       { label: "Reenie 细瘦",     css: '"Reenie Beanie", cursive',          cjk: false, lang: "lat" , family: "Reenie Beanie"},
+    rocksalt:     { label: "Rock Salt 粗犷",  css: '"Rock Salt", cursive',              cjk: false, lang: "lat" , family: "Rock Salt"}
   };
 
   /* 允许在运行时挂载用户自带的字体 */
@@ -109,6 +109,21 @@
     return p;
   }
 
+  /* ---------- 公式字形字体链 ----------
+   * 公式里的数字与符号也要写成手写体。候选顺序：
+   *   1) 当前正文字体（若含该字符）
+   *   2) Zen Kurenaido —— 实测数学符号覆盖 66/66，是最可靠的兜底
+   *   3) 其余中文手写体
+   * 都不含该字符时，mathrender 会保留 MathJax 原字形（保证正确性）。 */
+  var MATH_FALLBACK = ["Zen Kurenaido", "Klee One", "Yomogi", "LiuJianMaoCao", "MaShanZheng", "LongCang", "ZhiMangXing"];
+  function mathFontsOf(s) {
+    var cur = (FONTS[s.fontKey] || {}).family;
+    var list = [];
+    if (cur) list.push(cur);
+    for (var i = 0; i < MATH_FALLBACK.length; i++) if (MATH_FALLBACK[i] !== cur) list.push(MATH_FALLBACK[i]);
+    return list;
+  }
+
   /* 公式手写化强度：由档位决定，可被高级设置覆盖 */
   function formulaHandOf(s) {
     if (typeof s.formulaHand === "number") return s.formulaHand;
@@ -138,13 +153,13 @@
       } else {
         var fpx = settings.formulaPx || px;
         var fhand = formulaHandOf(settings), fseed = mathSeedOf(seg.value, settings);
-        var m = global.InkMath.render(seg.value, fpx, settings.inkColor, fhand, fseed);
+        var m = global.InkMath.render(seg.value, fpx, settings.inkColor, fhand, fseed, { handFonts: mathFontsOf(settings) });
         /* 行内公式过宽时等比缩小，避免撑出页面 */
         if (m) {
           var availW = (settings.pageWidth || 1240) - (settings.marginLeft || 0) - (settings.marginRight || 0);
           if (availW > 0 && m.w > availW) {
             var scFit = availW / m.w;
-            var m2 = global.InkMath.render(seg.value, fpx * scFit, settings.inkColor, fhand, fseed);
+            var m2 = global.InkMath.render(seg.value, fpx * scFit, settings.inkColor, fhand, fseed, { handFonts: mathFontsOf(settings) });
             if (m2 && m2.w < m.w) { m = m2; fpx = fpx * scFit; }
           }
         }
@@ -246,11 +261,11 @@
       if (b.type === "mathblock") {
         var ms = (s.formulaPx || s.fontSize) * 1.25;
         var dhand = formulaHandOf(s), dseed = mathSeedOf(b.latex, s);
-        var mm = global.InkMath.render(b.latex, ms, s.inkColor, dhand, dseed);
+        var mm = global.InkMath.render(b.latex, ms, s.inkColor, dhand, dseed, { handFonts: mathFontsOf(s) });
         /* 独立公式过宽时等比缩小，保证不出血 */
         if (mm && maxW > 0 && mm.w > maxW) {
           var scB = maxW / mm.w;
-          var mmS = global.InkMath.render(b.latex, ms * scB, s.inkColor, dhand, dseed);
+          var mmS = global.InkMath.render(b.latex, ms * scB, s.inkColor, dhand, dseed, { handFonts: mathFontsOf(s) });
           if (mmS && mmS.w < mm.w) { mm = mmS; ms = ms * scB; }
         }
         if (mm) {
@@ -514,7 +529,7 @@
     layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor,
     measureText: measureText, fontStr: fontStr, fontCssOf: fontCssOf, addCustomFont: addCustomFont,
     visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf,
-    handOf: handOf, HAND_PRESETS: HAND_PRESETS, fontsByLang: function (lang) {
+    handOf: handOf, HAND_PRESETS: HAND_PRESETS, mathFontsOf: mathFontsOf, fontsByLang: function (lang) {
       var out = [];
       for (var k in FONTS) if (!FONTS[k].custom && FONTS[k].lang === lang) out.push({ key: k, label: FONTS[k].label });
       return out;

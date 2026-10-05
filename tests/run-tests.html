@@ -366,6 +366,38 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: '抖动字形 ' + glyphs(a.html) + ' / ' + glyphs(b.html) + ' / ' + glyphs(c.html) };
   });
 
+  await t('公式手写化：数字与数学符号也用手写字体重绘', async function () {
+    await window.InkApp.registerFonts();
+    try { await document.fonts.ready; } catch (e) {}
+    var fams = window.InkRender.mathFontsOf({ fontKey: 'mashanzheng' });
+    assert(fams.length > 0 && fams[0] === 'MaShanZheng', '字体链首项应为当前字体');
+    assert(fams.indexOf('Zen Kurenaido') > 0, '字体链应包含 Zen Kurenaido 兜底');
+    var tex = '\\because \\angle ADC=45^\\circ,\\ \\triangle ADE\\cong\\triangle AEB,\\ \\sqrt{64}=\\frac{1}{2}\\times 4\\times 4=8';
+    var r = window.InkMath.render(tex, 30, '#000', 0, 7, { handFonts: fams });
+    assert(r && r.glyphStat, '应产出字形统计');
+    assert(r.glyphStat.drawn > 0, '应有字形被手写重绘，实际 ' + r.glyphStat.drawn);
+    var texts = (r.html.match(/<text\b/g) || []).length;
+    assert(texts >= r.glyphStat.drawn, '重绘数量与 <text> 数量应一致');
+    /* 数学符号必须真的走了手写字体 */
+    var sym = '\\angle\\triangle\\cong\\because\\therefore\\sqrt{\\ }^\\circ';
+    var r2 = window.InkMath.render('\\angle A\\triangle B\\cong C\\because D\\therefore E', 30, '#000', 0, 1, { handFonts: fams });
+    assert(r2.glyphStat.kept === 0, '∠△≅∵∴ 应全部手写化，未手写化 ' + r2.glyphStat.kept + ' 个');
+    assert((r2.glyphStat.byFont['composite'] || 0) >= 1, '≅ 应由组合字形合成，实际 composite=' + (r2.glyphStat.byFont['composite'] || 0));
+    return { pass: true, detail: '重绘 ' + r.glyphStat.drawn + ' 个字形（' + JSON.stringify(r.glyphStat.byFont) + '），符号 100% 手写化' };
+  });
+
+  await t('公式手写化：无法手写化的字符回退到 MathJax 原字形', function () {
+    var fams = window.InkRender.mathFontsOf({ fontKey: 'mashanzheng' });
+    /* 箭头 ⇒ 在多数手写体中缺失，应回退而不是丢失 */
+    var r = window.InkMath.render('a\\Rightarrow b', 30, '#000', 0, 1, { handFonts: fams });
+    assert(r && r.glyphStat, 'no stat');
+    assert(r.glyphStat.drawn + r.glyphStat.kept > 0, '字形总数不应为 0');
+    /* 关键：无论走哪条路，字符都不能丢 */
+    var contentOk = r.html.indexOf('>a<') >= 0 || r.html.indexOf('>b<') >= 0 || (r.html.match(/<text\b/g) || []).length >= 2;
+    assert(contentOk, '字符内容不应丢失');
+    return { pass: true, detail: '重绘 ' + r.glyphStat.drawn + ' / 回退 ' + r.glyphStat.kept };
+  });
+
   await t('手写化：不改动公式外框尺寸', function () {
     var tex = 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}';
     var a = window.InkMath.render(tex, 40, '#1b2a5e', 0, 1);
