@@ -6,16 +6,16 @@
   /* ================= 字体注册（全部本地文件，零网络） ================= */
   var FONT_FILES = [
     /* 中文手写（含日文手写体；按数学符号覆盖率排序） */
-    { family: "Zen Kurenaido",      url: "fonts/ZenKurenaido-Regular.ttf",        weight: "400" },
-    { family: "MPLUSRounded1c",     url: "fonts/MPLUSRounded1c-Regular.ttf",      weight: "400" },
-    { family: "PottaOne",           url: "fonts/PottaOne-Regular.ttf",            weight: "400" },
-    { family: "ZenMaruGothic",      url: "fonts/ZenMaruGothic-Regular.ttf",       weight: "400" },
-    { family: "Yomogi",             url: "fonts/Yomogi-Regular.ttf",              weight: "400" },
-    { family: "MaShanZheng",        url: "fonts/MaShanZheng-Regular.ttf",         weight: "400" },
-    { family: "Klee One",           url: "fonts/KleeOne-Regular.ttf",             weight: "400" },
-    { family: "LongCang",           url: "fonts/LongCang-Regular.ttf",            weight: "400" },
-    { family: "ZhiMangXing",        url: "fonts/ZhiMangXing-Regular.ttf",         weight: "400" },
-    { family: "LiuJianMaoCao",      url: "fonts/LiuJianMaoCao-Regular.ttf",       weight: "400" },
+    { family: "Zen Kurenaido",      url: "fonts/ZenKurenaido-Regular.woff2",        weight: "400" },
+    { family: "MPLUSRounded1c",     url: "fonts/MPLUSRounded1c-Regular.woff2",      weight: "400" },
+    { family: "PottaOne",           url: "fonts/PottaOne-Regular.woff2",            weight: "400" },
+    { family: "ZenMaruGothic",      url: "fonts/ZenMaruGothic-Regular.woff2",       weight: "400" },
+    { family: "Yomogi",             url: "fonts/Yomogi-Regular.woff2",              weight: "400" },
+    { family: "MaShanZheng",        url: "fonts/MaShanZheng-Regular.woff2",         weight: "400" },
+    { family: "Klee One",           url: "fonts/KleeOne-Regular.woff2",             weight: "400" },
+    { family: "LongCang",           url: "fonts/LongCang-Regular.woff2",            weight: "400" },
+    { family: "ZhiMangXing",        url: "fonts/ZhiMangXing-Regular.woff2",         weight: "400" },
+    { family: "LiuJianMaoCao",      url: "fonts/LiuJianMaoCao-Regular.woff2",       weight: "400" },
     /* 英文手写 */
     { family: "Caveat",             url: "fonts/Caveat-Regular.woff2",            weight: "400" },
     { family: "Caveat",             url: "fonts/Caveat-Bold.woff2",               weight: "700" },
@@ -39,19 +39,28 @@
   })();
   function setFontBase(p) { FONT_BASE = String(p == null ? "" : p); }
 
+  /* 字体注册：默认字体优先加载，其余后台补齐（首屏更快） */
+  var _fontSet = {};           // family|weight → true，避免重复计数
+  function _fontKey(f) { return f.family + "|" + f.weight; }
+  function _loadedCount() { return Object.keys(_fontSet).length; }
+  function _updateFontBadge() {
+    var fb = $("fontBadge");
+    if (fb) fb.textContent = "字体 " + _loadedCount() + "/" + FONT_FILES.length;
+  }
+  async function loadFontEntry(f) {
+    try {
+      var face = new FontFace(f.family, "url('" + FONT_BASE + f.url + "')", { weight: f.weight, style: "normal" });
+      await face.load();
+      document.fonts.add(face);
+      _fontSet[_fontKey(f)] = true; _updateFontBadge();
+      return { family: f.family, ok: true };
+    } catch (e) {
+      return { family: f.family, ok: false, err: String(e && e.message || e) };
+    }
+  }
   async function registerFonts() {
     var results = [];
-    for (var i = 0; i < FONT_FILES.length; i++) {
-      var f = FONT_FILES[i];
-      try {
-        var face = new FontFace(f.family, "url('" + FONT_BASE + f.url + "')", { weight: f.weight, style: "normal" });
-        await face.load();
-        document.fonts.add(face);
-        results.push({ family: f.family, ok: true });
-      } catch (e) {
-        results.push({ family: f.family, ok: false, err: String(e && e.message || e) });
-      }
-    }
+    for (var i = 0; i < FONT_FILES.length; i++) results.push(await loadFontEntry(FONT_FILES[i]));
     return results;
   }
 
@@ -455,15 +464,37 @@
       onDone: afterImport
     });
 
-    /* ---------- 拖拽导入 ---------- */
+    /* ---------- 统一导入面板：整块可点击 / 可拖拽 ---------- */
+    var importBusy = false;
+    var fi = $("fileInput");
+    function openPicker() { if (fi) fi.click(); }
+    function runImport(files) {
+      if (!files || !files.length || importBusy) return;
+      if (!global.InkImport) return;
+      importBusy = true;
+      global.InkImport.handleFiles(files, { toast: toast, onDone: afterImport })
+        .then(function () { importBusy = false; })
+        .catch(function (e) { importBusy = false; toast("导入失败：" + (e && e.message || e), "err"); });
+    }
+    var card = $("dropCard");
+    if (card) {
+      card.addEventListener("click", function (e) {
+        if (e.target && e.target.closest && e.target.closest("button, a, input")) return;   // 各按钮自行处理
+        openPicker();
+      });
+      card.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPicker(); }
+      });
+    }
+    /* 整块左栏都可拖入 */
     var drop = $("dropzone");
     if (drop) {
       ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
-      ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
+      drop.addEventListener("dragleave", function (e) { if (!drop.contains(e.relatedTarget)) drop.classList.remove("over"); });
       drop.addEventListener("drop", function (e) {
+        e.preventDefault(); drop.classList.remove("over");
         var files = e.dataTransfer && e.dataTransfer.files;
-        if (!files || !files.length) return;
-        if (global.InkImport) global.InkImport.handleFiles(files, { toast: toast, onDone: afterImport });
+        runImport(files);
       });
     }
 
@@ -676,15 +707,32 @@
     el.textContent = chars + " 字符 · " + lines + " 行";
   }
 
+  /* 首屏优先：默认字体（中/英各一）先加载并渲染，其余字体后台补齐 */
+  var BOOT_FAMILIES = { "Zen Kurenaido": 1, "Caveat": 1 };
+  async function loadBootFonts() {
+    var results = [];
+    for (var i = 0; i < FONT_FILES.length; i++) {
+      if (BOOT_FAMILIES[FONT_FILES[i].family]) results.push(await loadFontEntry(FONT_FILES[i]));
+    }
+    return results;
+  }
+  async function loadRemainingFonts() {
+    for (var i = 0; i < FONT_FILES.length; i++) {
+      if (!BOOT_FAMILIES[FONT_FILES[i].family]) await loadFontEntry(FONT_FILES[i]);
+    }
+  }
+
   /* ================= 启动 ================= */
   async function boot() {
     initControls();
     updateCounts();
 
-    var fontResults = await registerFonts();
-    var okCount = fontResults.filter(function (r) { return r.ok; }).length;
-    var fb = $("fontBadge");
-    if (fb) fb.textContent = "字体 " + okCount + "/" + fontResults.length;
+    /* 1) 先加载默认字体 → 尽早出首屏 */
+    var bootResults = await loadBootFonts();
+    var okCount = bootResults.filter(function (r) { return r.ok; }).length;
+    if (okCount === 0) {   // 默认字体失败时兜底：整批加载
+      var all = await registerFonts(); okCount = all.filter(function (r) { return r.ok; }).length;
+    }
 
     try { await document.fonts.ready; } catch (e) {}
 
@@ -700,6 +748,12 @@
     if (els.source) els.source.value = global.InkSamples.equation;
     updateCounts();
     scheduleRender(true);
+
+    /* 2) 首屏已出：其余字体后台补齐，补齐后重绘一次（非默认字体即时可用） */
+    loadRemainingFonts().then(function () {
+      if (state.fontCJK && !BOOT_FAMILIES[state.fontCJK]) scheduleRender(true);
+      if (state.fontEN && !BOOT_FAMILIES[state.fontEN]) scheduleRender(true);
+    });
   }
 
   function waitForMathJax(timeoutMs) {

@@ -77,21 +77,26 @@
         <button type="button" class="tab-btn" id="tabEdit" role="tab" aria-selected="false">编辑</button>
       </div>
 
-      <!-- 导入页：默认展示，导入 / 识别后自动切到「编辑」 -->
+      <div class="import-status" id="importStatus" hidden></div>
+
+      <!-- 导入页：一整块可点击 / 可拖拽的面板（默认展示，导入后自动切到「编辑」） -->
       <div class="import-view" id="importView">
-        <div class="import-panel">
-          <div class="import-bar">
-            <button class="btn primary" id="importFile" type="button">导入文件</button>
-            <button class="btn" id="importImage" type="button">识别图片</button>
-            <button class="btn" id="importPaste" type="button">粘贴识别</button>
+        <div class="dropzone-card" id="dropCard" role="button" tabindex="0"
+             aria-label="点击选择文件，或把文件拖到这里">
+          <div class="dropzone-ico" aria-hidden="true">＋</div>
+          <div class="dropzone-title">点击选择文件，或拖拽到这里</div>
+          <div class="dropzone-sub" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg）· 可多选</div>
+          <button class="btn primary dropzone-btn" id="importFile" type="button">选择文件</button>
+          <div class="dropzone-actions">
+            <button class="link-btn" id="importPaste" type="button">粘贴文本</button>
+            <span class="dot-sep" aria-hidden="true">·</span>
+            <button class="link-btn" id="importImage" type="button">识别图片</button>
           </div>
-          <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
         </div>
       </div>
 
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
-      <div class="import-status" id="importStatus" hidden></div>
 
       <!-- 批量队列 -->
       <div class="queue-panel" id="queuePanel" hidden>
@@ -274,26 +279,34 @@
     <section class="col preview-col">
       <div class="col-head">
         <h2>手写预览</h2>
-        <div class="pager" style="margin-left:auto">
-          <button class="btn sm" id="prevPage" type="button" aria-label="上一页">‹</button>
-          <span class="page-ind" id="pageInd">0 / 0</span>
-          <button class="btn sm" id="nextPage" type="button" aria-label="下一页">›</button>
+        <div class="head-actions" style="margin-left:auto">
           <span class="badge neutral" id="busy" style="display:none">渲染中…</span>
-          <button class="btn sm" id="regenerate" type="button" title="立即按当前参数重新生成（Ctrl/⌘ + Enter）">
-            <span class="regen-dot" aria-hidden="true"></span>生成手写稿
-          </button>
           <label class="auto-toggle" title="关闭后：改动参数不会自动重绘，需点「生成手写稿」">
             <input type="checkbox" id="autoRender" checked> 自动
           </label>
-          <button class="btn sm primary" id="exportPng" type="button">导出 PNG</button>
-          <button class="btn sm primary" id="exportPdf" type="button">导出 PDF</button>
         </div>
       </div>
+
       <div class="preview-stage" id="stage"></div>
       <div class="preview-empty" id="empty">
-        <div style="font-size:34px" aria-hidden="true">📄</div>
-        <div>左侧粘贴内容后，这里会实时出现手写效果</div>
-        <div class="hint">公式请用 <code>$...$</code> 或 <code>$$...$$</code> 包裹</div>
+        <div class="pe-ico" aria-hidden="true">📄</div>
+        <div class="pe-title">还没有内容</div>
+        <div class="pe-sub">在左侧导入或编辑文档，这里会实时出现手写效果</div>
+        <div class="pe-hint">公式用 <code>$...$</code> 或 <code>$$...$$</code> 包裹</div>
+      </div>
+
+      <div class="preview-foot">
+        <div class="pager" role="group" aria-label="翻页">
+          <button class="icon-btn" id="prevPage" type="button" aria-label="上一页">‹</button>
+          <span class="page-ind" id="pageInd">0 / 0</span>
+          <button class="icon-btn" id="nextPage" type="button" aria-label="下一页">›</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn sm" id="regenerate" type="button" title="立即按当前参数重新生成（Ctrl/⌘ + Enter）">
+          <span class="regen-dot" aria-hidden="true"></span>生成手写稿
+        </button>
+        <button class="btn sm primary" id="exportPng" type="button">导出 PNG</button>
+        <button class="btn sm primary" id="exportPdf" type="button">导出 PDF</button>
       </div>
     </section>
 
@@ -332,11 +345,9 @@
 </dialog>
 
 <!-- ============ 脚本（全部本地，经典脚本以兼容 file://） ============ -->
-<script src="vendor/jspdf.umd.min.js"></script>
+<!-- 首屏只需：公式引擎 + 轻量本地模块。重型导入/OCR 组件按需懒加载，避免拖慢首屏。 -->
 <script src="vendor/mathjax/tex-svg.js"></script>
-<script src="vendor/mammoth.browser.min.js"></script>
-<script src="vendor/pdf.min.js"></script>
-<script src="vendor/tesseract.min.js"></script>
+<script src="js/loader.js"></script>
 <script src="js/prng.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/mathrender.js"></script>

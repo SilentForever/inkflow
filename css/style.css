@@ -10,6 +10,7 @@
   --bg-deep:#e8ebf0;
   --surface:#ffffff;
   --surface-2:#fbfcfd;
+  --surface-3:#f2f4f8;
   --border:#e2e6ec;
   --border-strong:#cdd4de;
   --text:#161a20;
@@ -157,15 +158,41 @@ input[type=color]{
 
 /* ---------- 预览 ---------- */
 .preview-col{background:var(--bg-deep);}
+.head-actions{display:flex;align-items:center;gap:8px;}
 .preview-stage{
-  flex:1;overflow:auto;padding:24px;display:flex;justify-content:center;align-items:flex-start;
+  flex:1;min-height:0;overflow:auto;padding:26px 22px;
+  display:flex;justify-content:center;align-items:flex-start;
+  background:
+    radial-gradient(circle at 1px 1px,rgba(16,24,40,.05) 1px,transparent 0) 0 0/22px 22px,
+    var(--bg-deep);
 }
-#preview{display:block;max-width:100%;height:auto;background:#fff;border-radius:var(--r-sm);box-shadow:var(--shadow-lg);}
-.pager{display:flex;align-items:center;gap:8px;}
-.pager .page-ind{font-size:12px;font-variant-numeric:tabular-nums;color:var(--text-2);min-width:62px;text-align:center;}
+#preview{display:block;max-width:100%;height:auto;background:#fff;border-radius:var(--r-sm);
+  box-shadow:var(--shadow-lg),0 0 0 1px rgba(16,24,40,.05);}
 .preview-empty{
-  display:grid;place-items:center;height:100%;color:var(--text-3);text-align:center;padding:40px;gap:6px;
+  flex:1;display:grid;place-items:center;align-content:center;gap:6px;
+  color:var(--text-3);text-align:center;padding:40px;
 }
+.pe-ico{font-size:34px;line-height:1;opacity:.85;}
+.pe-title{font-size:14px;font-weight:650;color:var(--text-2);}
+.pe-sub{font-size:12.5px;max-width:34ch;line-height:1.6;}
+.pe-hint{font-size:11.5px;margin-top:2px;}
+.pe-hint code{background:var(--surface);padding:1px 5px;border-radius:4px;border:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--text-2);}
+.preview-foot{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none;
+  padding:10px 14px;border-top:1px solid var(--border);background:var(--surface-2);
+}
+.preview-foot .spacer{margin-left:auto;}
+.pager{display:flex;align-items:center;gap:4px;}
+.page-ind{font-size:12px;font-variant-numeric:tabular-nums;color:var(--text-2);min-width:56px;text-align:center;}
+.icon-btn{
+  appearance:none;width:28px;height:28px;border-radius:var(--r-sm);
+  border:1px solid var(--border-strong);background:var(--surface);color:var(--text-2);
+  font-size:16px;line-height:1;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:background var(--dur),border-color var(--dur),color var(--dur);
+}
+.icon-btn:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+.icon-btn:disabled{opacity:.4;cursor:not-allowed;}
 
 /* ---------- 统计 ---------- */
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
@@ -238,15 +265,9 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 /* ============================================================
    导入工具条
    ============================================================ */
-.import-panel{
-  margin:0 0 10px;padding:10px;border:1px solid var(--border);
-  border-radius:var(--r-md);background:var(--surface-2);
-}
-.import-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
 .import-sep{width:1px;height:18px;background:var(--border-strong);margin:0 2px;}
-.import-hint{margin:8px 0 0;line-height:1.45;}
 .import-status{
-  margin:0 0 10px;padding:8px 11px;border-radius:var(--r-sm);
+  flex:none;margin:10px 12px 0;padding:8px 11px;border-radius:var(--r-sm);
   background:var(--accent-soft);color:var(--accent);font-size:12.5px;
   border:1px solid rgba(59,91,219,.18);
 }
@@ -355,12 +376,37 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 .tab-btn:hover{color:var(--text-2);}
 .tab-btn[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);}
 .tab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
-/* 导入页 */
-.import-view{flex:1;min-height:0;overflow:auto;padding:14px 12px;}
+/* 导入页：一整块可点击 / 可拖拽的面板 */
+.import-view{flex:1;min-height:0;overflow:auto;padding:16px 14px;}
 .import-view[hidden]{display:none !important;}
-.import-view .import-panel{margin:0;}
-.import-view .import-bar{flex-direction:column;align-items:stretch;gap:8px;}
-.import-view .import-bar .btn{width:100%;padding:10px 12px;font-size:13px;}
+.dropzone-card{
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+  padding:30px 20px 26px;border:1.5px dashed var(--border-strong);border-radius:var(--r-lg);
+  background:var(--surface-2);cursor:pointer;
+  transition:border-color var(--dur),background var(--dur),box-shadow var(--dur),transform var(--dur);
+}
+.dropzone-card:hover{border-color:var(--accent);background:var(--accent-soft);}
+.dropzone-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.dropzone-ico{
+  width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+  font-size:28px;color:var(--accent);background:var(--accent-soft);
+  border:1px solid rgba(59,91,219,.22);
+}
+.dropzone-card:hover .dropzone-ico{transform:scale(1.04);}
+.dropzone-title{font-size:14px;font-weight:650;color:var(--text);margin-top:4px;}
+.dropzone-sub{font-size:11.5px;color:var(--text-3);line-height:1.5;max-width:30ch;}
+.dropzone-btn{margin-top:6px;width:100%;max-width:220px;padding:10px 14px;font-size:13px;}
+.dropzone-actions{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:12px;color:var(--text-3);}
+.link-btn{appearance:none;border:0;background:none;color:var(--accent);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:2px 2px;border-radius:4px;}
+.link-btn:hover{text-decoration:underline;}
+.dot-sep{color:var(--border-strong);}
+/* 整块左栏拖拽高亮 */
+#dropzone.over{border-radius:var(--r-lg);}
+#dropzone.over .dropzone-card,
+#dropzone.over .editor-wrap{
+  outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--r-lg);
+}
+#dropzone.over .dropzone-card{border-color:var(--accent);background:var(--accent-soft);}
 /* 编辑视图 / 队列：互斥 */
 .edit-view{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:10px 10px 0;}
 .edit-view[hidden]{display:none !important;}

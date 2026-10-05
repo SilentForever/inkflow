@@ -46,6 +46,7 @@
   async function exportPDF(canvases, filename, opts) {
     opts = opts || {};
     var jsPDFCtor = global.jspdf && global.jspdf.jsPDF;
+    if (!jsPDFCtor && global.InkLoader) { await global.InkLoader.ensureJsPdf(); jsPDFCtor = global.jspdf && global.jspdf.jsPDF; }
     if (!jsPDFCtor) throw new Error("jsPDF 未加载");
     var dpi = opts.dpi || 150;
     var first = canvases[0];

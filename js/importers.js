@@ -44,18 +44,18 @@
 
   /* ---------- PDF ---------- */
   var pdfReady = false;
-  function ensurePdf() {
-    if (pdfReady) return true;
-    var lib = global.pdfjsLib;
-    if (!lib) return false;
-    try {
-      lib.GlobalWorkerOptions.workerSrc = BASE + "vendor/pdf.worker.min.js";
-    } catch (e) {}
+  function configurePdf() {
+    if (pdfReady) return;
+    try { global.pdfjsLib.GlobalWorkerOptions.workerSrc = BASE + "vendor/pdf.worker.min.js"; } catch (e) {}
     pdfReady = true;
-    return true;
+  }
+  async function ensurePdf() {
+    if (global.pdfjsLib) { configurePdf(); return true; }
+    if (global.InkLoader) { await global.InkLoader.ensurePdf(); configurePdf(); return true; }
+    return false;
   }
   async function readPdf(file) {
-    if (!ensurePdf()) throw new Error("PDF 组件未就绪");
+    if (!(await ensurePdf())) throw new Error("PDF 组件未就绪");
     var buf = await file.arrayBuffer();
     var doc = await global.pdfjsLib.getDocument({ data: buf, disableFontFace: false }).promise;
     var out = [];
@@ -91,6 +91,7 @@
 
   /* ---------- Word(.docx) ---------- */
   async function readDocx(file) {
+    if (!global.mammoth && global.InkLoader) await global.InkLoader.ensureDocx();
     if (!global.mammoth) throw new Error("Word 组件未就绪");
     var buf = await file.arrayBuffer();
     var res = await global.mammoth.convertToHtml({ arrayBuffer: buf });
@@ -130,17 +131,22 @@
     if (!ocrSupported()) {
       return Promise.reject(new Error("图片识别需要 http(s) 环境：本地双击打开（file://）时浏览器不允许启动识别线程。请改用 PDF / Word / 文本导入，或访问已部署的在线版本。"));
     }
-    if (!global.Tesseract) return Promise.reject(new Error("OCR 组件未就绪"));
-    setStatus("正在初始化 OCR（首次较慢）…", "busy", true);
-    return global.Tesseract.createWorker(["chi_sim", "eng"], 1, {
-      workerPath: BASE + "vendor/tesseract.min.js",
-      corePath: BASE + "vendor/",
-      langPath: BASE + "vendor/tessdata",
-      cacheMethod: "none",
-      logger: function (m) {
-        if (m && m.status) setStatus("OCR：" + m.status + (m.progress ? " " + Math.round(m.progress * 100) + "%" : ""), "busy", true);
-      }
-    }).then(function (w) { ocrWorker = w; return w; });
+    /* 按需加载 OCR 组件（首屏不加载） */
+    var ready = global.Tesseract ? Promise.resolve()
+      : (global.InkLoader ? global.InkLoader.ensureOcr() : Promise.reject(new Error("OCR 组件未就绪")));
+    return ready.then(function () {
+      if (!global.Tesseract) throw new Error("OCR 组件未就绪");
+      setStatus("正在初始化 OCR（首次较慢）…", "busy", true);
+      return global.Tesseract.createWorker(["chi_sim", "eng"], 1, {
+        workerPath: BASE + "vendor/tesseract.min.js",
+        corePath: BASE + "vendor/",
+        langPath: BASE + "vendor/tessdata",
+        cacheMethod: "none",
+        logger: function (m) {
+          if (m && m.status) setStatus("OCR：" + m.status + (m.progress ? " " + Math.round(m.progress * 100) + "%" : ""), "busy", true);
+        }
+      }).then(function (w) { ocrWorker = w; return w; });
+    });
   }
   function fileToDataURL(file) {
     return new Promise(function (resolve, reject) {
