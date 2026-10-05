@@ -400,6 +400,39 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: '手绘 ' + drawn + ' 个 / 回退图片 ' + (r.fallbackSvg ? '有' : '无') };
   });
 
+  await t('颜色：公式与正文使用同一墨色（回归）', async function () {
+    await window.InkApp.registerFonts();
+    try { await document.fonts.ready; } catch (e) {}
+    var st = window.InkApp.state;
+    var keep = { fontKey: st.fontKey, inkColor: st.inkColor, textColor: st.textColor,
+                 paper: st.paper, inkVary: st.inkVary, inkAmount: st.inkAmount, fontSize: st.fontSize };
+    st.fontKey = 'kleeone'; st.inkColor = '#c0392b'; st.textColor = '#c0392b';
+    st.paper = 'plain'; st.inkVary = 0; st.inkAmount = 1; st.fontSize = 30;
+    function core(src) {
+      return window.InkRender.render(window.InkParser.parse(src), window.InkApp.toSettings(), {}).then(function (r) {
+        var cv = r.canvases[0];
+        var d = cv.getContext('2d').getImageData(0, 0, cv.width, Math.min(200, cv.height)).data;
+        var hist = {};
+        for (var i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 250) continue;
+          if ((d[i] + d[i + 1] + d[i + 2]) / 3 > 150) continue;
+          var k = d[i] + ',' + d[i + 1] + ',' + d[i + 2];
+          hist[k] = (hist[k] || 0) + 1;
+        }
+        var top = Object.keys(hist).sort(function (a, b) { return hist[b] - hist[a]; })[0];
+        return top || 'none';
+      });
+    }
+    var textCore = await core('中文文字 ABC 123');
+    var mathCore = await core('$x^2+\\frac{a}{b}=0$');
+    /* 还原 */
+    st.fontKey = keep.fontKey; st.inkColor = keep.inkColor; st.textColor = keep.textColor;
+    st.paper = keep.paper; st.inkVary = keep.inkVary; st.inkAmount = keep.inkAmount; st.fontSize = keep.fontSize;
+    assert(textCore === mathCore, '公式与正文墨色不一致：正文 ' + textCore + ' / 公式 ' + mathCore);
+    assert(textCore === '192,57,43', '墨色应为设置的 #c0392b，实际 ' + textCore);
+    return { pass: true, detail: '正文与公式同为 rgb(' + textCore + ')' };
+  });
+
   await t('手写化：不改动公式外框尺寸', function () {
     var tex = 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}';
     var a = window.InkMath.render(tex, 40, '#1b2a5e', 0, 1);

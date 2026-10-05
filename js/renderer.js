@@ -450,7 +450,7 @@
           ctx.scale(sc, sc);
 
           if (tk.kind === "math") {
-            drawMath(ctx, tk, mathMap, -tk.w / 2, -(tk.h - tk.depth));
+            drawMath(ctx, tk, mathMap, -tk.w / 2, -(tk.h - tk.depth), textColorOf(s));
           } else {
             ctx.font = tk.font || styledFont(tk.size, fontCssOf(s.fontKey), s);
             ctx.fillStyle = tk.color || textColorOf(s);
@@ -496,10 +496,10 @@
   /* ---------- 公式绘制 ----------
    * 字形用 canvas 画（canvas 能正常使用 Web 字体），
    * 少数无法手写化的字符叠一张 MathJax 原字形图片。 */
-  function drawMath(ctx, tk, mathMap, ox, oy) {
+  function drawMath(ctx, tk, mathMap, ox, oy, color) {
     var rec = mathMap ? mathMap.get(tk) : null;
     var alpha0 = ctx.globalAlpha;
-    var color = ctx.fillStyle;
+    if (!color) color = ctx.fillStyle;   // 兜底：调用方未指定时才继承
 
     /* 1) 回退字形（保持原样） */
     if (tk.fallbackSvg && rec && rec.img) {
