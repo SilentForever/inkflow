@@ -345,19 +345,43 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     var blocks = window.InkParser.parse(src);
     var seen = [];
     for (var lv = 0; lv <= 1.0001; lv += 0.25) {
-      var r = await window.InkRender.render(blocks, baseSettings({ formulaScribble: lv }), {});
+      var r = await window.InkRender.render(blocks, baseSettings({ formulaScribble: lv, formulaHand: lv }), {});
       assert(r.canvases.length === 1, 'no canvas at ' + lv);
       seen.push(Math.round(lv * 100) + '%');
     }
     return { pass: true, detail: '档位 ' + seen.join(' / ') };
   });
 
-  await t('潦草化：强度不同 → 输出确实不同', async function () {
-    var blocks = window.InkParser.parse('$$' + '\\int_0^1 x^2\\,dx=\\frac{1}{3}' + '$$');
-    var a = await window.InkRender.render(blocks, baseSettings({ formulaScribble: 0 }), {});
-    var b = await window.InkRender.render(blocks, baseSettings({ formulaScribble: 1 }), {});
-    assert(hashCanvas2(a.canvases[0]) !== hashCanvas2(b.canvases[0]), 'scribble had no effect');
-    return { pass: true, detail: '0% 与 100% 输出不同' };
+  await t('手写化：字形级抖动随强度变化', function () {
+    var tex = '\\int_0^1 x^2\\,dx=\\frac{1}{3}';
+    var a = window.InkMath.render(tex, 30, '#1b2a5e', 0, 12345);
+    var b = window.InkMath.render(tex, 30, '#1b2a5e', 0.5, 12345);
+    var c = window.InkMath.render(tex, 30, '#1b2a5e', 1.0, 12345);
+    assert(a && b && c, 'render failed');
+    function glyphs(html) { return (html.match(/<use[^>]*transform=/g) || []).length; }
+    assert(glyphs(a.html) === 0, 'neat 档不应有字形抖动，实际 ' + glyphs(a.html));
+    assert(glyphs(b.html) > 0, 'natural 档应有字形抖动');
+    assert(glyphs(c.html) >= glyphs(b.html), 'casual 档字形数不应少于 natural');
+    assert(a.html !== b.html && b.html !== c.html, '不同强度应产生不同 SVG');
+    return { pass: true, detail: '抖动字形 ' + glyphs(a.html) + ' / ' + glyphs(b.html) + ' / ' + glyphs(c.html) };
+  });
+
+  await t('手写化：不改动公式外框尺寸', function () {
+    var tex = 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}';
+    var a = window.InkMath.render(tex, 40, '#1b2a5e', 0, 1);
+    var b = window.InkMath.render(tex, 40, '#1b2a5e', 1.0, 1);
+    assert(Math.abs(a.w - b.w) < 0.01 && Math.abs(a.h - b.h) < 0.01, '抖动不应改变外框尺寸');
+    return { pass: true, detail: 'w/h 完全一致（' + a.w.toFixed(1) + '×' + a.h.toFixed(1) + '）' };
+  });
+
+  await t('手写化：同种子可复现（SVG 完全一致）', function () {
+    var tex = '\\sum_{i=1}^{n} i^2';
+    var a = window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 777).html;
+    var b = window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 777).html;
+    var c = window.InkMath.render(tex, 30, '#1b2a5e', 0.6, 778).html;
+    assert(a === b, '同种子应完全一致');
+    assert(a !== c, '不同种子应不同');
+    return { pass: true, detail: '同种子一致 / 异种子不同' };
   });
 
   await t('潦草化：同种子可复现', async function () {

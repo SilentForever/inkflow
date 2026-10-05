@@ -5,14 +5,21 @@
 
   /* ================= 字体注册（全部本地文件，零网络） ================= */
   var FONT_FILES = [
-    { family: "Caveat",         url: "fonts/Caveat-Regular.woff2",        weight: "400" },
-    { family: "Caveat",         url: "fonts/Caveat-Bold.woff2",           weight: "700" },
-    { family: "Rock Salt",      url: "fonts/RockSalt-Regular.woff2",      weight: "400" },
-    { family: "Reenie Beanie",  url: "fonts/ReenieBeanie-Regular.woff2",  weight: "400" },
-    { family: "Homemade Apple", url: "fonts/HomemadeApple-Regular.woff2", weight: "400" },
-    { family: "Patrick Hand",   url: "fonts/PatrickHand-Regular.woff2",   weight: "400" },
-    { family: "MaShanZheng",    url: "fonts/MaShanZheng-Regular.ttf",     weight: "400" },
-    { family: "LongCang",       url: "fonts/LongCang-Regular.ttf",        weight: "400" }
+    { family: "Caveat",             url: "fonts/Caveat-Regular.woff2",            weight: "400" },
+    { family: "Caveat",             url: "fonts/Caveat-Bold.woff2",               weight: "700" },
+    { family: "Patrick Hand",       url: "fonts/PatrickHand-Regular.woff2",       weight: "400" },
+    { family: "Indie Flower",       url: "fonts/IndieFlower-Regular.woff2",       weight: "400" },
+    { family: "Kalam",              url: "fonts/Kalam-Regular.woff2",             weight: "400" },
+    { family: "Shadows Into Light", url: "fonts/ShadowsIntoLight-Regular.woff2",  weight: "400" },
+    { family: "Architects Daughter",url: "fonts/ArchitectsDaughter-Regular.woff2",weight: "400" },
+    { family: "Gloria Hallelujah",  url: "fonts/GloriaHallelujah-Regular.woff2",  weight: "400" },
+    { family: "Reenie Beanie",      url: "fonts/ReenieBeanie-Regular.woff2",      weight: "400" },
+    { family: "Rock Salt",          url: "fonts/RockSalt-Regular.woff2",          weight: "400" },
+    { family: "MaShanZheng",        url: "fonts/MaShanZheng-Regular.ttf",         weight: "400" },
+    { family: "LongCang",           url: "fonts/LongCang-Regular.ttf",            weight: "400" },
+    { family: "LiuJianMaoCao",      url: "fonts/LiuJianMaoCao-Regular.ttf",       weight: "400" },
+    { family: "ZhiMangXing",        url: "fonts/ZhiMangXing-Regular.ttf",         weight: "400" },
+    { family: "ZCOOLKuaiLe",        url: "fonts/ZCOOLKuaiLe-Regular.ttf",         weight: "400" }
   ];
 
   /* 字体目录：由本脚本自身的 URL 推导，因此在任意子目录下都能正确定位 */
@@ -50,6 +57,9 @@
     fontSize: 28,
     lineHeight: 1.9,
     letterSpacing: 0.3,
+    hand: "normal",          // 工整 / 自然 / 随性
+    handCustom: false,       // 高级设置里是否手动改过抖动
+    fontLang: "cjk",
     jitter: 1.1,
     rotateDeg: 0.55,
     sizeVary: 0.02,
@@ -57,7 +67,7 @@
     inkColor: "#1b2a5e",
     inkAmount: 0.93,
     inkVary: 0.09,
-    formulaScribble: 0.5,
+    formulaHand: 0.5,
     formulaScale: 1.0,
     seed: 20240517,
     margin: 88,
@@ -76,7 +86,8 @@
       fontSize: state.fontSize, lineHeight: state.lineHeight, letterSpacing: state.letterSpacing,
       jitter: state.jitter, rotateDeg: state.rotateDeg, sizeVary: state.sizeVary,
       baselineDrift: state.baselineDrift, inkColor: state.inkColor, inkAmount: state.inkAmount,
-      inkVary: state.inkVary, formulaScribble: state.formulaScribble, formulaScale: state.formulaScale, seed: state.seed,
+      inkVary: state.inkVary, formulaHand: state.formulaHand, formulaScale: state.formulaScale, seed: state.seed,
+      hand: state.hand, handCustom: state.handCustom, fontLang: state.fontLang,
       marginTop: m, marginBottom: Math.round(m * 0.9), marginLeft: m, marginRight: Math.round(m * 0.8),
       showHeader: state.showHeader, headerText: state.headerText,
       showDate: state.showDate, dateText: new Date().toLocaleDateString("zh-CN"),
@@ -194,7 +205,7 @@
   }
 
   /* ================= 控件绑定 ================= */
-  function bindRange(id, key, fmt) {
+  function bindRange(id, key, fmt, onChange) {
     var input = $(id);
     if (!input) return;
     var out = $(id + "Out");
@@ -203,7 +214,7 @@
       state[key] = v;
       if (out) out.textContent = fmt ? fmt(v) : String(v);
     }
-    input.addEventListener("input", function () { sync(); scheduleRender(); });
+    input.addEventListener("input", function () { sync(); if (onChange) onChange(); scheduleRender(); });
     sync();
   }
 
@@ -231,22 +242,83 @@
   function initControls() {
     els.source = $("source");
 
+    /* ---------- 语言 + 字体（二级联动） ---------- */
+    function fillFonts(lang) {
+      var sel = $("fontKey");
+      if (!sel) return;
+      var list = global.InkRender.fontsByLang(lang);
+      sel.innerHTML = "";
+      for (var i = 0; i < list.length; i++) {
+        var o = document.createElement("option");
+        o.value = list[i].key; o.textContent = list[i].label;
+        sel.appendChild(o);
+      }
+      var hint = $("fontHint");
+      if (hint) hint.textContent = (lang === "cjk") ? "中文手写体（毛笔 / 行草 / 手绘）" : "英文手写体（连笔 / 工整 / 随性）";
+      return sel;
+    }
+    function selectLang(lang, keepFont) {
+      state.fontLang = lang;
+      var sel = fillFonts(lang);
+      if (!keepFont || !sel || !sel.value) {
+        /* 切语言时挑一个该语言下的默认字体 */
+        var prefer = (lang === "cjk") ? "mashanzheng" : "caveat";
+        if (sel) {
+          var has = false;
+          for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === prefer) has = true;
+          sel.value = has ? prefer : (sel.options[0] && sel.options[0].value) || "";
+        }
+        state.fontKey = sel ? sel.value : state.fontKey;
+      }
+      var segs = document.querySelectorAll('[data-lang]');
+      for (var k = 0; k < segs.length; k++) segs[k].setAttribute("aria-pressed", segs[k].getAttribute("data-lang") === lang ? "true" : "false");
+      scheduleRender(true);
+    }
+    state.fontLang = "cjk";
+    selectLang(state.fontLang, true);
+    var selF = $("fontKey");
+    if (selF) selF.addEventListener("change", function () { state.fontKey = selF.value; scheduleRender(true); });
+    var langBtns = document.querySelectorAll('[data-lang]');
+    for (var lb = 0; lb < langBtns.length; lb++) {
+      (function (b) { b.addEventListener("click", function () { selectLang(b.getAttribute("data-lang"), false); }); })(langBtns[lb]);
+    }
+
+    /* ---------- 手写程度：三档 ---------- */
+    function applyHand(level) {
+      state.hand = level;
+      state.handCustom = false;
+      var hp = global.InkRender.handOf(level);
+      state.jitter = hp.jitter; state.rotateDeg = hp.rotateDeg;
+      state.sizeVary = hp.sizeVary; state.baselineDrift = hp.baselineDrift;
+      state.formulaHand = hp.formulaHand;
+      syncRange("jitter"); syncRange("rotateDeg"); syncRange("sizeVary");
+      syncRange("baselineDrift"); syncRange("formulaHand");
+      var bs = document.querySelectorAll('[data-hand]');
+      for (var i = 0; i < bs.length; i++) bs[i].setAttribute("aria-pressed", bs[i].getAttribute("data-hand") === level ? "true" : "false");
+      scheduleRender(true);
+    }
+    var handBtns = document.querySelectorAll('[data-hand]');
+    for (var hb = 0; hb < handBtns.length; hb++) {
+      (function (b) { b.addEventListener("click", function () { applyHand(b.getAttribute("data-hand")); }); })(handBtns[hb]);
+    }
+
+    /* ---------- 常规控件 ---------- */
     bindSelect("pageSize", "pageSize");
     bindSelect("paper", "paper");
-    bindSelect("fontKey", "fontKey");
-
     bindRange("fontSize", "fontSize", function (v) { return v + " px"; });
     bindRange("lineHeight", "lineHeight", function (v) { return v.toFixed(2) + "×"; });
     bindRange("letterSpacing", "letterSpacing", function (v) { return v.toFixed(1) + " px"; });
-    bindRange("jitter", "jitter", function (v) { return v.toFixed(1) + " px"; });
-    bindRange("rotateDeg", "rotateDeg", function (v) { return v.toFixed(2) + "°"; });
-    bindRange("sizeVary", "sizeVary", function (v) { return (v * 100).toFixed(1) + "%"; });
-    bindRange("baselineDrift", "baselineDrift", function (v) { return v.toFixed(1) + " px"; });
-    bindRange("formulaScribble", "formulaScribble", function (v) { return Math.round(v * 100) + "%"; });
     bindRange("formulaScale", "formulaScale", function (v) { return v.toFixed(2) + "×"; });
     bindRange("inkAmount", "inkAmount", function (v) { return Math.round(v * 100) + "%"; });
-    bindRange("inkVary", "inkVary", function (v) { return Math.round(v * 100) + "%"; });
     bindRange("margin", "margin", function (v) { return v + " px"; });
+
+    /* ---------- 高级：抖动微调（手动改过即脱离档位） ---------- */
+    function markCustom() { state.handCustom = true; }
+    bindRange("jitter", "jitter", function (v) { return v.toFixed(1) + " px"; }, markCustom);
+    bindRange("rotateDeg", "rotateDeg", function (v) { return v.toFixed(2) + "°"; }, markCustom);
+    bindRange("sizeVary", "sizeVary", function (v) { return (v * 100).toFixed(1) + "%"; }, markCustom);
+    bindRange("baselineDrift", "baselineDrift", function (v) { return v.toFixed(1) + " px"; }, markCustom);
+    bindRange("formulaHand", "formulaHand", function (v) { return Math.round(v * 100) + "%"; }, markCustom);
 
     var ink = $("inkColor");
     if (ink) { ink.value = state.inkColor; ink.addEventListener("input", function () { state.inkColor = ink.value; scheduleRender(); }); }
@@ -290,10 +362,7 @@
     var demo = $("loadDemo");
     if (demo) demo.addEventListener("click", function () { els.source.value = global.InkSamples.equation; updateCounts(); scheduleRender(true); });
 
-    var demo2 = $("loadDemo2");
-    if (demo2) demo2.addEventListener("click", function () { els.source.value = global.InkSamples.calculus; updateCounts(); scheduleRender(true); });
-
-    /* 自定义字体：仅本地读取文件，不发起任何网络请求 */
+    /* ---------- 自定义字体：仅本地读取 ---------- */
     var cf = $("customFont");
     if (cf) cf.addEventListener("change", async function () {
       var f = cf.files && cf.files[0];
@@ -306,13 +375,13 @@
         document.fonts.add(face);
         global.InkRender.addCustomFont("userfont", family, "自定义：" + f.name.slice(0, 18));
         state.fontKey = "userfont";
-        var sel = $("fontKey");
-        if (sel) {
+        var sel2 = $("fontKey");
+        if (sel2) {
           var opt = document.createElement("option");
           opt.value = "userfont";
           opt.textContent = "自定义：" + f.name.slice(0, 18);
-          sel.appendChild(opt);
-          sel.value = "userfont";
+          sel2.appendChild(opt);
+          sel2.value = "userfont";
         }
         var hint = $("customFontHint");
         if (hint) hint.textContent = "已载入：" + f.name + "（仅本地读取）";
@@ -328,17 +397,18 @@
     var hclose = $("helpClose");
     if (hclose) hclose.addEventListener("click", function () { var d = $("helpDlg"); if (d) d.close(); });
 
-    // 拖拽导入（本地读取，不上传）
+    /* ---------- 导入：文件 / 图片 / 粘贴识别 ---------- */
+    if (global.InkImport) global.InkImport.bind({ getSource: function () { return els.source; }, toast: toast, onDone: function () { updateCounts(); scheduleRender(true); } });
+
+    /* ---------- 拖拽导入 ---------- */
     var drop = $("dropzone");
     if (drop) {
       ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
       ["dragleave", "drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
       drop.addEventListener("drop", function (e) {
-        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (!f) return;
-        var r = new FileReader();
-        r.onload = function () { els.source.value = String(r.result); updateCounts(); scheduleRender(true); toast("已载入 " + f.name + "（仅本地读取）", "ok"); };
-        r.readAsText(f);
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if (!files || !files.length) return;
+        if (global.InkImport) global.InkImport.handleFiles(files, { toast: toast, onDone: function () { updateCounts(); scheduleRender(true); } });
       });
     }
 
@@ -347,6 +417,25 @@
       if (e.key === "Enter") { e.preventDefault(); scheduleRender(true); }
       if (e.key.toLowerCase() === "s") { e.preventDefault(); var b = $("exportPdf"); if (b) b.click(); }
     });
+  }
+
+  /* 把状态值写回滑杆（档位切换时用） */
+  function syncRange(id) {
+    var el = $(id); if (!el) return;
+    var key = id;
+    if (state[key] == null) return;
+    el.value = String(state[key]);
+    var out = $(id + "Out");
+    if (out) {
+      var v = parseFloat(el.value);
+      var fmt = { fontSize: function(){return v+" px";}, lineHeight: function(){return v.toFixed(2)+"×";},
+        letterSpacing: function(){return v.toFixed(1)+" px";}, jitter: function(){return v.toFixed(1)+" px";},
+        rotateDeg: function(){return v.toFixed(2)+"°";}, sizeVary: function(){return (v*100).toFixed(1)+"%";},
+        baselineDrift: function(){return v.toFixed(1)+" px";}, formulaHand: function(){return Math.round(v*100)+"%";},
+        formulaScale: function(){return v.toFixed(2)+"×";}, inkAmount: function(){return Math.round(v*100)+"%";},
+        margin: function(){return v+" px";} }[id];
+      out.textContent = fmt ? fmt() : String(v);
+    }
   }
 
   function updateCounts() {

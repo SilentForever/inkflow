@@ -89,6 +89,19 @@ index.html  css/  js/  fonts/  vendor/  vercel.json
 
 ---
 
+## 关于「图片识别」
+
+浏览器**不允许 `file://` 页面创建 Worker 并 `importScripts`**，因此：
+
+| 访问方式 | PDF / Word / 文本导入 | 图片 OCR |
+|---|---|---|
+| 双击 `index.html`（file://） | ✅ 可用 | ❌ 按钮置灰并提示 |
+| 部署到 Vercel（https） | ✅ 可用 | ✅ 可用 |
+
+所有依赖（pdf.js / mammoth / tesseract.js + 中英语言包）都已 vendor 到 `vendor/`，OCR 不访问任何外部网络。
+
+---
+
 ## 部署后自检清单
 
 打开 `https://<你的域名>/`，确认：

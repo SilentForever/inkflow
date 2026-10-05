@@ -32,14 +32,24 @@
         <h2>文档输入</h2>
         <div class="btn-row" style="margin-left:auto">
           <button class="btn sm" id="loadDemo" type="button">方程示例</button>
-          <button class="btn sm" id="loadDemo2" type="button">微积分示例</button>
           <button class="btn sm ghost" id="clearAll" type="button">清空</button>
         </div>
       </div>
+
+      <div class="import-bar">
+        <button class="btn sm primary" id="importFile" type="button">导入文件</button>
+        <button class="btn sm" id="importImage" type="button">识别图片</button>
+        <button class="btn sm ghost" id="importPaste" type="button">粘贴识别</button>
+      </div>
+      <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
+      <input type="file" id="fileInput" class="sr-only" multiple
+             accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
+      <div class="import-status" id="importStatus" hidden></div>
+
       <div class="editor-wrap">
         <label class="sr-only" for="source">文档内容</label>
         <textarea id="source" spellcheck="false"
-          placeholder="在此粘贴 Markdown / LaTeX，或把 .md / .txt 文件拖进本区域…&#10;&#10;行内公式用 $...$，独立公式用 $$...$$"></textarea>
+          placeholder="在此粘贴 Markdown / LaTeX，或点上方按钮导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $$...$$"></textarea>
         <div class="editor-foot">
           <span id="counts">0 字符 · 0 行</span>
           <span class="spacer"></span>
@@ -52,6 +62,43 @@
     <section class="col">
       <div class="col-head"><h2>手写参数</h2></div>
       <div class="col-body">
+
+        <!-- 语言 -->
+        <div class="field">
+          <label>文字语言</label>
+          <div class="seg" role="group" aria-label="文字语言">
+            <button type="button" class="seg-btn" data-lang="cjk" aria-pressed="true">中文</button>
+            <button type="button" class="seg-btn" data-lang="lat" aria-pressed="false">English</button>
+          </div>
+          <div class="hint">决定下方可选字体；中英混排时中文选中文体即可</div>
+        </div>
+
+        <!-- 字体 -->
+        <div class="field">
+          <label for="fontKey">手写字体</label>
+          <select id="fontKey"></select>
+          <div class="hint" id="fontHint">中文手写体（毛笔 / 行草 / 手绘）</div>
+        </div>
+
+        <!-- 手写程度：三档 -->
+        <div class="field">
+          <label>手写程度</label>
+          <div class="seg" role="group" aria-label="手写程度">
+            <button type="button" class="seg-btn" data-hand="neat" aria-pressed="false">工整</button>
+            <button type="button" class="seg-btn" data-hand="normal" aria-pressed="true">自然</button>
+            <button type="button" class="seg-btn" data-hand="casual" aria-pressed="false">随性</button>
+          </div>
+          <div class="hint">工整接近印刷、随性更潦草；公式会同步变化</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 常用：只有两个滑杆 -->
+        <div class="field">
+          <label for="fontSize">字号</label>
+          <input type="range" id="fontSize" min="16" max="56" step="1" value="28">
+          <div class="field-label"><span class="hint">越大越清晰，每页字数越少</span><output id="fontSizeOut"></output></div>
+        </div>
 
         <div class="field">
           <label for="pageSize">纸张尺寸</label>
@@ -66,8 +113,8 @@
         <div class="field">
           <label for="paper">纸张样式</label>
           <select id="paper">
-            <option value="plain">白纸</option>
             <option value="ruled">横线纸</option>
+            <option value="plain">白纸</option>
             <option value="grid">方格纸</option>
             <option value="mi">米字格</option>
             <option value="kraft">牛皮纸</option>
@@ -75,111 +122,52 @@
           </select>
         </div>
 
-        <div class="field">
-          <label for="fontKey">手写字体</label>
-          <select id="fontKey">
-            <option value="mashanzheng">马善政 毛笔（中文）</option>
-            <option value="longcang">龙藏 行草（中文）</option>
-            <option value="kai">系统楷体（中文兜底）</option>
-            <option value="caveat">Caveat 连笔（拉丁）</option>
-            <option value="rocksalt">Rock Salt 潦草（拉丁）</option>
-            <option value="reenie">Reenie 随性（拉丁）</option>
-            <option value="homemade">Homemade 手写（拉丁）</option>
-            <option value="patrick">Patrick 工整（拉丁）</option>
-          </select>
-          <div class="hint">中文内容请选中文体；纯英文可用拉丁体</div>
-        </div>
+        <!-- 高级：默认折叠 -->
+        <details class="adv">
+          <summary>高级设置（可选）</summary>
+          <div style="padding-top:10px">
 
-        <div class="field">
-          <label for="customFont">自定义字体（可选）</label>
-          <input type="file" id="customFont" accept=".ttf,.otf,.woff,.woff2">
-          <div class="hint" id="customFontHint">载入本机的 ttf/otf 字体文件，仅本地读取，不会上传</div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="field">
-          <label for="fontSize">字号</label>
-          <input type="range" id="fontSize" min="16" max="56" step="1" value="28">
-          <div class="field-label"><span class="hint">越大越清晰，每页字数越少</span><output id="fontSizeOut"></output></div>
-        </div>
-
-        <div class="field">
-          <label for="lineHeight">行距</label>
-          <input type="range" id="lineHeight" min="1.2" max="3.4" step="0.05" value="1.9">
-          <div class="field-label"><span class="hint">相对字号的倍数</span><output id="lineHeightOut"></output></div>
-        </div>
-
-        <div class="field">
-          <label for="letterSpacing">字距</label>
-          <input type="range" id="letterSpacing" min="0" max="4" step="0.1" value="0.3">
-          <div class="field-label"><span class="hint">额外字间距（px）</span><output id="letterSpacingOut"></output></div>
-        </div>
-
-        <details class="adv" open>
-          <summary>手写自然度</summary>
-          <div style="padding-top:8px">
             <div class="field">
-              <label for="jitter">抖动强度</label>
-              <input type="range" id="jitter" min="0" max="4" step="0.05" value="1.1">
-              <div class="field-label"><span class="hint">每个字的位置随机偏移</span><output id="jitterOut"></output></div>
+              <label for="customFont">自定义字体</label>
+              <input type="file" id="customFont" accept=".ttf,.otf,.woff,.woff2">
+              <div class="hint" id="customFontHint">载入本机 ttf/otf 字体，仅本地读取</div>
             </div>
+
             <div class="field">
-              <label for="rotateDeg">字形倾斜</label>
-              <input type="range" id="rotateDeg" min="0" max="3" step="0.05" value="0.55">
-              <div class="field-label"><span class="hint">单字旋转幅度</span><output id="rotateDegOut"></output></div>
+              <label for="lineHeight">行距</label>
+              <input type="range" id="lineHeight" min="1.2" max="3.4" step="0.05" value="1.9">
+              <div class="field-label"><span class="hint">相对字号的倍数</span><output id="lineHeightOut"></output></div>
             </div>
+
             <div class="field">
-              <label for="sizeVary">字号变化</label>
-              <input type="range" id="sizeVary" min="0" max="0.12" step="0.005" value="0.02">
-              <div class="field-label"><span class="hint">大小不一的自然感</span><output id="sizeVaryOut"></output></div>
+              <label for="letterSpacing">字距</label>
+              <input type="range" id="letterSpacing" min="0" max="4" step="0.1" value="0.3">
+              <div class="field-label"><span class="hint">额外字间距（px）</span><output id="letterSpacingOut"></output></div>
             </div>
-            <div class="field">
-              <label for="baselineDrift">基线漂移</label>
-              <input type="range" id="baselineDrift" min="0" max="4" step="0.1" value="0.7">
-              <div class="field-label"><span class="hint">整行上下起伏</span><output id="baselineDriftOut"></output></div>
-            </div>
-            <div class="field">
-              <label for="formulaScribble">公式潦草度</label>
-              <input type="range" id="formulaScribble" min="0" max="1" step="0.05" value="0.5">
-              <div class="field-label"><span class="hint">让印刷体公式带上手写扭曲与叠描</span><output id="formulaScribbleOut"></output></div>
-            </div>
+
             <div class="field">
               <label for="formulaScale">公式大小</label>
               <input type="range" id="formulaScale" min="0.7" max="1.7" step="0.05" value="1">
-              <div class="field-label"><span class="hint">已按所选字体自动匹配，可再微调</span><output id="formulaScaleOut"></output></div>
+              <div class="field-label"><span class="hint">已按字体自动匹配，可再微调</span><output id="formulaScaleOut"></output></div>
             </div>
-          </div>
-        </details>
 
-        <details class="adv">
-          <summary>墨迹与页边距</summary>
-          <div style="padding-top:8px">
             <div class="field">
               <label for="inkColor">墨水颜色</label>
               <input type="color" id="inkColor" value="#1b2a5e">
             </div>
+
             <div class="field">
               <label for="inkAmount">墨量</label>
               <input type="range" id="inkAmount" min="0.3" max="1" step="0.01" value="0.93">
               <div class="field-label"><span class="hint">整体浓淡</span><output id="inkAmountOut"></output></div>
             </div>
-            <div class="field">
-              <label for="inkVary">墨色不均</label>
-              <input type="range" id="inkVary" min="0" max="0.4" step="0.01" value="0.09">
-              <div class="field-label"><span class="hint">模拟笔压变化</span><output id="inkVaryOut"></output></div>
-            </div>
+
             <div class="field">
               <label for="margin">页边距</label>
               <input type="range" id="margin" min="40" max="170" step="2" value="88">
               <div class="field-label"><span class="hint">四周留白</span><output id="marginOut"></output></div>
             </div>
-          </div>
-        </details>
 
-        <details class="adv">
-          <summary>页眉页脚与随机种子</summary>
-          <div style="padding-top:8px">
             <div class="field">
               <label for="headerText">页眉文字</label>
               <input type="text" id="headerText" placeholder="如：第 3 次作业" maxlength="60">
@@ -188,14 +176,48 @@
             <label class="checkline"><input type="checkbox" id="showDate"> 页眉右侧显示日期</label>
             <label class="checkline"><input type="checkbox" id="showFooter" checked> 显示页码</label>
             <label class="checkline"><input type="checkbox" id="showTotalPages" checked> 页码显示总页数</label>
+
             <div class="field" style="margin-top:10px">
               <label for="seed">随机种子</label>
               <div style="display:flex;gap:8px">
                 <input type="number" id="seed" value="20240517" min="0" step="1">
                 <button class="btn sm" id="reseed" type="button">换一批</button>
               </div>
-              <div class="hint">同一种子 → 完全相同的排版，便于复现</div>
+              <div class="hint">同一种子 → 完全相同的排版</div>
             </div>
+
+            <div class="divider"></div>
+            <details class="adv" style="margin-top:4px">
+              <summary>微调手写抖动</summary>
+              <div style="padding-top:10px">
+                <div class="field">
+                  <label for="jitter">抖动强度</label>
+                  <input type="range" id="jitter" min="0" max="4" step="0.05" value="1.1">
+                  <div class="field-label"><span class="hint">每个字的位置随机偏移</span><output id="jitterOut"></output></div>
+                </div>
+                <div class="field">
+                  <label for="rotateDeg">字形倾斜</label>
+                  <input type="range" id="rotateDeg" min="0" max="3" step="0.05" value="0.55">
+                  <div class="field-label"><span class="hint">单字旋转幅度</span><output id="rotateDegOut"></output></div>
+                </div>
+                <div class="field">
+                  <label for="sizeVary">字号变化</label>
+                  <input type="range" id="sizeVary" min="0" max="0.12" step="0.005" value="0.02">
+                  <div class="field-label"><span class="hint">大小不一的自然感</span><output id="sizeVaryOut"></output></div>
+                </div>
+                <div class="field">
+                  <label for="baselineDrift">基线漂移</label>
+                  <input type="range" id="baselineDrift" min="0" max="4" step="0.1" value="0.7">
+                  <div class="field-label"><span class="hint">整行上下起伏</span><output id="baselineDriftOut"></output></div>
+                </div>
+                <div class="field">
+                  <label for="formulaHand">公式手写度</label>
+                  <input type="range" id="formulaHand" min="0" max="1" step="0.05" value="0.5">
+                  <div class="field-label"><span class="hint">公式字形的抖动幅度</span><output id="formulaHandOut"></output></div>
+                </div>
+              </div>
+            </details>
+
           </div>
         </details>
 
@@ -203,6 +225,7 @@
         <div class="field-label" style="margin-bottom:8px">本次渲染</div>
         <div class="stats" id="stats"><div class="stat"><b>—</b><span>等待输入</span></div></div>
 
+      </div>
       </div>
     </section>
 
@@ -231,6 +254,7 @@
 </div>
 
 <div id="toasts" aria-live="polite"></div>
+<div id="ocrHost" aria-hidden="true" style="position:absolute;left:-99999px;top:0;width:1px;height:1px;overflow:hidden"></div>
 
 <!-- ============ 帮助 ============ -->
 <dialog id="helpDlg">
@@ -259,12 +283,16 @@
 <!-- ============ 脚本（全部本地，经典脚本以兼容 file://） ============ -->
 <script src="vendor/jspdf.umd.min.js"></script>
 <script src="vendor/mathjax/tex-svg.js"></script>
+<script src="vendor/mammoth.browser.min.js"></script>
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/tesseract.min.js"></script>
 <script src="js/prng.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/mathrender.js"></script>
 <script src="js/paper.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/exporter.js"></script>
+<script src="js/importers.js"></script>
 <script src="js/samples.js"></script>
 <script src="js/app.js"></script>
 </body>

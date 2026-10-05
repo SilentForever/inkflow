@@ -3,15 +3,25 @@
   "use strict";
   var U = global.InkUtil;
 
+  /* 字体按语言分组，供界面做二级选择：中文 / 英文 */
   var FONTS = {
-    caveat:      { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive',      cjk: false },
-    rocksalt:    { label: "Rock Salt 潦草",  css: '"Rock Salt", cursive',                   cjk: false },
-    reenie:      { label: "Reenie 随性",     css: '"Reenie Beanie", cursive',               cjk: false },
-    homemade:    { label: "Homemade 手写",   css: '"Homemade Apple", cursive',              cjk: false },
-    patrick:     { label: "Patrick 工整",    css: '"Patrick Hand", cursive',                cjk: false },
-    mashanzheng: { label: "马善政 毛笔",     css: '"MaShanZheng", "KaiTi", cursive',        cjk: true },
-    longcang:    { label: "龙藏 行草",       css: '"LongCang", "KaiTi", cursive',           cjk: true },
-    kai:         { label: "系统楷体",        css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true }
+    /* ---------- 中文手写 ---------- */
+    mashanzheng:  { label: "马善政 毛笔楷书", css: '"MaShanZheng", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
+    longcang:     { label: "龙藏 行草",       css: '"LongCang", "KaiTi", cursive',      cjk: true,  lang: "cjk" },
+    liujianmaocao:{ label: "刘建毛草 狂草",   css: '"LiuJianMaoCao", "KaiTi", cursive', cjk: true,  lang: "cjk" },
+    zhimangxing:  { label: "志莽行书 洒脱",   css: '"ZhiMangXing", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
+    zcoolkuaile:  { label: "站酷快乐体 手绘", css: '"ZCOOLKuaiLe", "KaiTi", cursive',   cjk: true,  lang: "cjk" },
+    kai:          { label: "系统楷体",        css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk" },
+    /* ---------- 英文手写 ---------- */
+    caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat" },
+    patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat" },
+    indie:        { label: "Indie 随记",      css: '"Indie Flower", cursive',           cjk: false, lang: "lat" },
+    kalam:        { label: "Kalam 洒脱",      css: '"Kalam", cursive',                  cjk: false, lang: "lat" },
+    shadows:      { label: "Shadows 轻柔",    css: '"Shadows Into Light", cursive',     cjk: false, lang: "lat" },
+    architects:   { label: "Architects 手绘", css: '"Architects Daughter", cursive',    cjk: false, lang: "lat" },
+    gloria:       { label: "Gloria 活泼",     css: '"Gloria Hallelujah", cursive',      cjk: false, lang: "lat" },
+    reenie:       { label: "Reenie 细瘦",     css: '"Reenie Beanie", cursive',          cjk: false, lang: "lat" },
+    rocksalt:     { label: "Rock Salt 粗犷",  css: '"Rock Salt", cursive',              cjk: false, lang: "lat" }
   };
 
   /* 允许在运行时挂载用户自带的字体 */
@@ -70,6 +80,29 @@
     return U.clamp(s, 0.82, 1.5);
   }
 
+  /* ---------- 手写风格档位 ----------
+   * 界面只暴露 3 档，避免用户面对十几个滑杆。
+   * 档位同时决定「整字抖动」与「公式手写化」的强度。 */
+  var HAND_PRESETS = {
+    neat:   { label: "工整", jitter: 0.35, rotateDeg: 0.18, sizeVary: 0.008, baselineDrift: 0.22, formulaHand: 0.18 },
+    normal: { label: "自然", jitter: 1.10, rotateDeg: 0.55, sizeVary: 0.020, baselineDrift: 0.70, formulaHand: 0.50 },
+    casual: { label: "随性", jitter: 1.90, rotateDeg: 1.00, sizeVary: 0.038, baselineDrift: 1.30, formulaHand: 0.85 }
+  };
+  function handOf(level) {
+    var p = HAND_PRESETS[level] || HAND_PRESETS.normal;
+    return p;
+  }
+
+  /* 公式手写化强度：由档位决定，可被高级设置覆盖 */
+  function formulaHandOf(s) {
+    if (typeof s.formulaHand === "number") return s.formulaHand;
+    return handOf(s.hand).formulaHand;
+  }
+  /* 公式随机种子：同一公式 + 同一种子 → 完全一致 */
+  function mathSeedOf(latex, s) {
+    return (U.hashString(String(latex || "")) ^ (s.seed >>> 0)) >>> 0;
+  }
+
   /* ---------- 行内片段 → token ---------- */
   function inlineTokens(text, px, fontKey, settings) {
     var fc = fontCssOf(fontKey);
@@ -86,13 +119,14 @@
         }
       } else {
         var fpx = settings.formulaPx || px;
-        var m = global.InkMath.render(seg.value, fpx, settings.inkColor);
+        var fhand = formulaHandOf(settings), fseed = mathSeedOf(seg.value, settings);
+        var m = global.InkMath.render(seg.value, fpx, settings.inkColor, fhand, fseed);
         /* 行内公式过宽时等比缩小，避免撑出页面 */
         if (m) {
           var availW = (settings.pageWidth || 1240) - (settings.marginLeft || 0) - (settings.marginRight || 0);
           if (availW > 0 && m.w > availW) {
             var scFit = availW / m.w;
-            var m2 = global.InkMath.render(seg.value, fpx * scFit, settings.inkColor);
+            var m2 = global.InkMath.render(seg.value, fpx * scFit, settings.inkColor, fhand, fseed);
             if (m2 && m2.w < m.w) { m = m2; fpx = fpx * scFit; }
           }
         }
@@ -192,11 +226,12 @@
       }
       if (b.type === "mathblock") {
         var ms = (s.formulaPx || s.fontSize) * 1.25;
-        var mm = global.InkMath.render(b.latex, ms, s.inkColor);
+        var dhand = formulaHandOf(s), dseed = mathSeedOf(b.latex, s);
+        var mm = global.InkMath.render(b.latex, ms, s.inkColor, dhand, dseed);
         /* 独立公式过宽时等比缩小，保证不出血 */
         if (mm && maxW > 0 && mm.w > maxW) {
           var scB = maxW / mm.w;
-          var mmS = global.InkMath.render(b.latex, ms * scB, s.inkColor);
+          var mmS = global.InkMath.render(b.latex, ms * scB, s.inkColor, dhand, dseed);
           if (mmS && mmS.w < mm.w) { mm = mmS; ms = ms * scB; }
         }
         if (mm) {
@@ -277,9 +312,7 @@
         var img = await global.InkMath.loadImage(svg);
         rec.img = img;
         if (!img) { rec.prep = null; return; }
-        var amount = typeof s.formulaScribble === "number" ? s.formulaScribble : 0;
-        var seed = (U.hashString(String(rec.tok.latex || "")) ^ (s.seed >>> 0)) >>> 0;
-        rec.prep = global.InkMath.scribble(img, rec.tok.w, rec.tok.h, amount, seed, s.inkColor);
+        rec.prep = global.InkMath.scribble(img, rec.tok.w, rec.tok.h, 0, 0, s.inkColor);
       })());
     });
     if (jobs.length) await Promise.all(jobs);
@@ -292,6 +325,12 @@
     var t0 = now();
 
     s = Object.assign({}, s);
+    /* 手写档位 → 具体抖动参数（高级设置里显式改过则以显式值为准） */
+    if (s.hand && !s.handCustom) {
+      var hp = handOf(s.hand);
+      s.jitter = hp.jitter; s.rotateDeg = hp.rotateDeg;
+      s.sizeVary = hp.sizeVary; s.baselineDrift = hp.baselineDrift;
+    }
     var ps = PAGE_SIZES[s.pageSize] || PAGE_SIZES.a4;
     s.pageWidth = ps.w; s.pageHeight = ps.h;
     s.lineHeightPx = s.fontSize * s.lineHeight;
@@ -439,6 +478,11 @@
     render: render, FONTS: FONTS, MONO: MONO, PAGE_SIZES: PAGE_SIZES,
     layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor,
     measureText: measureText, fontStr: fontStr, fontCssOf: fontCssOf, addCustomFont: addCustomFont,
-    visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf
+    visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf,
+    handOf: handOf, HAND_PRESETS: HAND_PRESETS, fontsByLang: function (lang) {
+      var out = [];
+      for (var k in FONTS) if (!FONTS[k].custom && FONTS[k].lang === lang) out.push({ key: k, label: FONTS[k].label });
+      return out;
+    }
   };
 })(typeof window !== "undefined" ? window : this);
