@@ -243,3 +243,29 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 
 /* 拖拽高亮 */
 #dropzone.over{outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--r-lg);}
+
+/* ============================================================
+   生成按钮 + 自动开关
+   ============================================================ */
+#regenerate{position:relative;font-weight:600;}
+#regenerate .regen-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--text-3);margin-right:6px;vertical-align:1px;
+  transition:background var(--dur),box-shadow var(--dur);
+}
+#regenerate.is-dirty .regen-dot{
+  background:var(--warn);
+  box-shadow:0 0 0 3px var(--warn-soft);
+}
+#regenerate.is-dirty{
+  border-color:var(--warn);
+  color:var(--warn);
+  background:var(--warn-soft);
+}
+.auto-toggle{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:12.5px;color:var(--text-2);white-space:nowrap;
+  padding:0 6px;user-select:none;cursor:pointer;
+}
+.auto-toggle input{accent-color:var(--accent);cursor:pointer;margin:0;}
+.auto-toggle:hover{color:var(--text);}

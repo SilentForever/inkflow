@@ -238,6 +238,12 @@
           <span class="page-ind" id="pageInd">0 / 0</span>
           <button class="btn sm" id="nextPage" type="button" aria-label="下一页">›</button>
           <span class="badge neutral" id="busy" style="display:none">渲染中…</span>
+          <button class="btn sm" id="regenerate" type="button" title="立即按当前参数重新生成（Ctrl/⌘ + Enter）">
+            <span class="regen-dot" aria-hidden="true"></span>生成手写稿
+          </button>
+          <label class="auto-toggle" title="关闭后：改动参数不会自动重绘，需点「生成手写稿」">
+            <input type="checkbox" id="autoRender" checked> 自动
+          </label>
           <button class="btn sm primary" id="exportPng" type="button">导出 PNG</button>
           <button class="btn sm primary" id="exportPdf" type="button">导出 PDF</button>
         </div>

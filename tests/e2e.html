@@ -254,6 +254,12 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
           <span class="page-ind" id="pageInd">0 / 0</span>
           <button class="btn sm" id="nextPage" type="button" aria-label="下一页">›</button>
           <span class="badge neutral" id="busy" style="display:none">渲染中…</span>
+          <button class="btn sm" id="regenerate" type="button" title="立即按当前参数重新生成（Ctrl/⌘ + Enter）">
+            <span class="regen-dot" aria-hidden="true"></span>生成手写稿
+          </button>
+          <label class="auto-toggle" title="关闭后：改动参数不会自动重绘，需点「生成手写稿」">
+            <input type="checkbox" id="autoRender" checked> 自动
+          </label>
           <button class="btn sm primary" id="exportPng" type="button">导出 PNG</button>
           <button class="btn sm primary" id="exportPdf" type="button">导出 PDF</button>
         </div>
@@ -399,6 +405,36 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       if (a === b) throw new Error("hand level had no effect (" + a + ")");
       if (document.querySelector('[data-hand][aria-pressed="true"]').getAttribute("data-hand") !== "casual") throw new Error("aria-pressed not updated");
       return "工整 → 随性 输出不同";
+    });
+
+    await t("交互：生成按钮存在且可触发重绘", async function(){
+      var btn = $("regenerate");
+      if (!btn) throw new Error("no regenerate button");
+      var before = hashAll(document.querySelector("canvas"));
+      /* 关闭自动 → 改参数不重绘，按钮进入待生成态 */
+      var auto = $("autoRender");
+      if (auto.checked) { auto.click(); await sleep(300); }
+      $("fontSize").value = "34"; $("fontSize").dispatchEvent(new Event("input", {bubbles:true}));
+      await sleep(1400);
+      var stillOld = hashAll(document.querySelector("canvas"));
+      if (stillOld !== before) throw new Error("auto-off 时不应重绘");
+      if (!btn.classList.contains("is-dirty")) throw new Error("按钮未标记待生成");
+      /* 点按钮 → 重绘 + 清除待生成态 */
+      btn.click();
+      await sleep(1800);
+      var after = hashAll(document.querySelector("canvas"));
+      if (after === stillOld) throw new Error("按钮未触发重绘");
+      if (btn.classList.contains("is-dirty")) throw new Error("待生成态未清除");
+      /* 恢复自动 */
+      auto.click(); await sleep(300);
+      $("fontSize").value = "28"; $("fontSize").dispatchEvent(new Event("input", {bubbles:true}));
+      await sleep(1500);
+      return "关闭自动 → 待生成 → 点击生成 → 恢复自动";
+    });
+
+    await t("交互：默认开启自动生成", function(){
+      if (!$("autoRender").checked) throw new Error("默认应为自动");
+      return "自动生成已开启";
     });
 
     await t("交互：公式手写度滑杆改变输出", async function(){

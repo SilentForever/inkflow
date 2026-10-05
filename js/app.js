@@ -60,6 +60,7 @@
     hand: "normal",          // 工整 / 自然 / 随性
     handCustom: false,       // 高级设置里是否手动改过抖动
     fontLang: "cjk",
+    autoRender: true,        // 关闭后需手动点「生成手写稿」
     jitter: 1.1,
     rotateDeg: 0.55,
     sizeVary: 0.02,
@@ -117,9 +118,30 @@
 
   /* ================= 渲染 ================= */
   var pending = null;
+  var dirty = false;
+
+  /* 把「需要重绘」标记为待处理；是否立刻执行取决于自动重绘开关 */
+  function markDirty() {
+    dirty = true;
+    var btn = $("regenerate");
+    if (btn) btn.classList.add("is-dirty");
+  }
+  function clearDirty() {
+    dirty = false;
+    var btn = $("regenerate");
+    if (btn) btn.classList.remove("is-dirty");
+  }
+
   function scheduleRender(immediate) {
     if (pending) clearTimeout(pending);
+    if (!state.autoRender) { markDirty(); return; }
     pending = setTimeout(function () { pending = null; doRender(); }, immediate ? 0 : 260);
+  }
+
+  /* 手动生成：跳过防抖立即渲染 */
+  function regenerate() {
+    if (pending) { clearTimeout(pending); pending = null; }
+    return doRender();
   }
 
   async function doRender() {
@@ -150,7 +172,7 @@
       console.error(e);
       toast("渲染失败：" + (e && e.message || e), "err", 4200);
     } finally {
-      if (token === renderToken) setBusy(false);
+      if (token === renderToken) { setBusy(false); clearDirty(); }
     }
   }
 
@@ -412,9 +434,31 @@
       });
     }
 
+    /* ---------- 生成按钮 + 自动重绘开关 ---------- */
+    var regen = $("regenerate");
+    if (regen) regen.addEventListener("click", function () {
+      clearDirty();
+      toast("正在生成手写稿…", "ok", 900);
+      regenerate();
+    });
+
+    var auto = $("autoRender");
+    if (auto) {
+      auto.checked = !!state.autoRender;
+      auto.addEventListener("change", function () {
+        state.autoRender = auto.checked;
+        if (state.autoRender) {
+          if (dirty) { clearDirty(); regenerate(); }
+          toast("已开启自动生成", "ok", 1400);
+        } else {
+          toast("已关闭自动生成：改完参数后点「生成手写稿」", "warn", 3000);
+        }
+      });
+    }
+
     window.addEventListener("keydown", function (e) {
       if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.key === "Enter") { e.preventDefault(); scheduleRender(true); }
+      if (e.key === "Enter") { e.preventDefault(); clearDirty(); regenerate(); }
       if (e.key.toLowerCase() === "s") { e.preventDefault(); var b = $("exportPdf"); if (b) b.click(); }
     });
   }
@@ -490,7 +534,7 @@
     });
   }
 
-  global.InkApp = { state: state, toSettings: toSettings, doRender: doRender, registerFonts: registerFonts, setFontBase: setFontBase, boot: boot };
+  global.InkApp = { state: state, toSettings: toSettings, doRender: doRender, regenerate: regenerate, scheduleRender: scheduleRender, registerFonts: registerFonts, setFontBase: setFontBase, boot: boot };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })(typeof window !== "undefined" ? window : this);
