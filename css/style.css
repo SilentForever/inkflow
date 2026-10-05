@@ -1,3 +1,6 @@
+/* hidden 属性优先：作者样式里的 display 会覆盖 UA 的 display:none */
+[hidden]{display:none !important;}
+
 /* ============================================================
    InkFlow 墨流 · 设计系统
    原则：语义化、可访问对比度、键盘可达、尊重 reduced-motion
@@ -68,9 +71,14 @@ h1,h2,h3,p{margin:0;}
 .badge.warn{background:var(--warn-soft);color:var(--warn);border-color:#f0dcb8;}
 .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;}
 
-.main{display:grid;grid-template-columns:minmax(300px,1fr) 296px minmax(420px,1.35fr);overflow:hidden;}
+.main{display:grid;grid-template-columns:minmax(300px,1fr) 296px minmax(420px,1.35fr);grid-template-rows:minmax(0,1fr);overflow:hidden;}
 @media (max-width:1180px){ .main{grid-template-columns:minmax(280px,1fr) 272px;} .preview-col{grid-column:1/-1;} }
-@media (max-width:820px){ .main{grid-template-columns:1fr;overflow:auto;} .col{max-height:none!important;} }
+/* 窄屏：三栏改单栏堆叠，每栏给一个确定高度，避免 flex:1 在自动行高下塌成 0 */
+@media (max-width:820px){
+  .main{grid-template-columns:1fr;grid-template-rows:none;overflow:auto;}
+  .col{max-height:none!important;height:min(82vh,760px);}
+  .preview-col{height:auto;min-height:62vh;}
+}
 
 .col{display:flex;flex-direction:column;overflow:hidden;background:var(--surface);}
 .col + .col{border-left:1px solid var(--border);}
@@ -313,19 +321,39 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 /* ============================================================
    模式切换 + 批量队列
    ============================================================ */
-.mode-switch{
-  display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;
-  background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:4px;margin-bottom:10px;
+/* 左栏：Word 式工具栏（左=视图切换，右=当前视图的工具，互不混排） */
+.input-toolbar{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:6px 10px;border-bottom:1px solid var(--border);background:var(--surface-2);
 }
-.queue-panel{display:flex;flex-direction:column;gap:8px;min-height:0;}
+.input-toolbar .seg{flex:none;background:var(--bg-deep);}
+.tool-group{display:flex;align-items:center;gap:4px;}
+.tool-group[hidden]{display:none !important;}
+.tool-sep{width:1px;height:18px;background:var(--border-strong);margin:0 3px;}
+.tool-size{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);font-size:12px;cursor:pointer;}
+.tool-size-ico{font-weight:700;font-size:13px;}
+.tool-size input[type=range]{width:76px;}
+.tool-size output{min-width:20px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-3);}
+/* 编辑视图 / 预览视图：互斥 */
+.edit-view{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:10px 10px 0;}
+.edit-view[hidden]{display:none !important;}
+.input-preview{
+  flex:1;min-height:0;overflow:auto;padding:16px 18px;
+  font-family:var(--font-mono);font-size:13px;line-height:1.85;color:var(--text);
+  white-space:pre-wrap;word-break:break-word;
+}
+.input-preview[hidden]{display:none !important;}
+.input-preview mark{background:rgba(255,205,86,.45);border-radius:3px;padding:0 2px;}
+.input-preview .pv-empty{color:var(--text-3);}
+.queue-panel{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0;}
+.queue-panel[hidden]{display:none !important;}
 .queue-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
 .queue-progress{display:flex;flex-direction:column;gap:5px;}
 .qbar{height:6px;border-radius:3px;background:var(--bg-deep);overflow:hidden;}
 .qbar>span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s;}
 .qhint{font-size:12px;color:var(--text-2);}
 .queue-list{
-  list-style:none;margin:0;padding:0;overflow-y:auto;flex:1;min-height:80px;
+  list-style:none;margin:0;padding:0;overflow-y:auto;flex:1 1 auto;min-height:80px;
   border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);
 }
 .queue-list li{

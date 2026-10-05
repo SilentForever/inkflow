@@ -52,20 +52,51 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         </div>
       </div>
 
-      <div class="mode-switch" role="group" aria-label="输入模式">
-        <button type="button" class="seg-btn" id="modeSingle" aria-pressed="true">单篇输入</button>
-        <button type="button" class="seg-btn" id="modeQueue" aria-pressed="false">批量队列</button>
+      <!-- Word 式工具栏：左=视图切换，右=该视图的工具（不同时出现） -->
+      <div class="input-toolbar">
+        <div class="seg view-seg" role="group" aria-label="输入视图">
+          <button type="button" class="seg-btn" id="modeEdit" aria-pressed="true">编辑</button>
+          <button type="button" class="seg-btn" id="modePreview" aria-pressed="false">预览</button>
+        </div>
+
+        <!-- 编辑视图工具：字体样式 + 字号（对应 Word 的「开始」选项卡） -->
+        <div class="tool-group" id="sourceTools">
+          <span class="tool-sep" aria-hidden="true"></span>
+          <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
+          <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
+          <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
+          <label class="fmt-color" title="字色">
+            <input type="color" id="textColor" value="#1b2a5e">
+            <span>字色</span>
+          </label>
+          <label class="tool-size" title="字号">
+            <span class="tool-size-ico" aria-hidden="true">A</span>
+            <input type="range" id="fontSize" min="16" max="56" step="1" value="28">
+            <output id="fontSizeOut">28</output>
+          </label>
+        </div>
+
+        <!-- 批量队列工具：单篇 / 批量（只影响编辑视图） -->
+        <div class="tool-group queue-seg" id="queueTools">
+          <span class="tool-sep" aria-hidden="true"></span>
+          <div class="seg" role="group" aria-label="输入模式">
+            <button type="button" class="seg-btn" id="modeSingle" aria-pressed="true">单篇</button>
+            <button type="button" class="seg-btn" id="modeQueue" aria-pressed="false">批量</button>
+          </div>
+        </div>
       </div>
 
-      <div class="import-panel">
-        <div class="import-bar">
-          <button class="btn sm primary" id="importFile" type="button">导入文件</button>
-          <span class="import-sep" aria-hidden="true"></span>
-          <button class="btn sm" id="importImage" type="button">识别图片</button>
-          <button class="btn sm" id="importPaste" type="button">粘贴识别</button>
+      <!-- 编辑视图：导入区 + （单篇编辑器 | 批量队列） -->
+      <div class="edit-view" id="editView">
+        <div class="import-panel">
+          <div class="import-bar">
+            <button class="btn sm primary" id="importFile" type="button">导入文件</button>
+            <span class="import-sep" aria-hidden="true"></span>
+            <button class="btn sm" id="importImage" type="button">识别图片</button>
+            <button class="btn sm" id="importPaste" type="button">粘贴识别</button>
+          </div>
+          <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
         </div>
-        <div class="hint import-hint" id="importHint">支持 Markdown / TXT / PDF / Word(.docx) / 图片（png·jpg），也可直接把文件拖进来</div>
-      </div>
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
       <div class="import-status" id="importStatus" hidden></div>
@@ -88,16 +119,20 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
       </div>
 
-      <div class="editor-wrap">
-        <label class="sr-only" for="source">文档内容</label>
-        <textarea id="source" spellcheck="false"
-          placeholder="在此粘贴 Markdown / LaTeX，或点上方按钮导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $$...$$"></textarea>
-        <div class="editor-foot">
-          <span id="counts">0 字符 · 0 行</span>
-          <span class="spacer"></span>
-          <span>Ctrl/⌘ + Enter 立即重绘</span>
+        <div class="editor-wrap">
+          <label class="sr-only" for="source">文档内容</label>
+          <textarea id="source" spellcheck="false"
+            placeholder="在此粘贴 Markdown / LaTeX，或点上方按钮导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $...$"></textarea>
+          <div class="editor-foot">
+            <span id="counts">0 字符 · 0 行</span>
+            <span class="spacer"></span>
+            <span>Ctrl/⌘ + Enter 立即重绘</span>
+          </div>
         </div>
-      </div>
+      </div><!-- /edit-view -->
+
+      <!-- 预览视图：只读查看当前文本（与编辑视图互斥） -->
+      <div class="input-preview" id="inputPreview" hidden></div>
     </section>
 
     <!-- ============ 中：参数 ============ -->
@@ -126,11 +161,6 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
             <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
             <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
             <span class="fmt-sep" aria-hidden="true"></span>
-            <label class="fmt-color" title="字色">
-              <input type="color" id="textColor" value="#1b2a5e">
-              <span>字色</span>
-            </label>
-            <span class="fmt-sep" aria-hidden="true"></span>
             <label class="fmt-slider" title="文字缩放">
               <span>缩放</span>
               <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
@@ -151,13 +181,6 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         </div>
 
         <div class="divider"></div>
-
-        <!-- 常用：只有两个滑杆 -->
-        <div class="field">
-          <label for="fontSize">字号</label>
-          <input type="range" id="fontSize" min="16" max="56" step="1" value="28">
-          <div class="field-label"><span class="hint">越大越清晰，每页字数越少</span><output id="fontSizeOut"></output></div>
-        </div>
 
         <div class="field">
           <label for="pageSize">纸张尺寸</label>
@@ -325,9 +348,12 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
   <div class="dlg-head">使用说明</div>
   <div class="dlg-body">
     <p><b>三步出结果</b></p>
-    <p>1. 在左侧粘贴答案内容（支持 Markdown 标题、列表、代码块）；<br>
-       2. 公式用 <code>$...$</code>（行内）或 <code>$$...$$</code>（独立成行）；<br>
-       3. 右侧实时预览，满意后点「导出 PNG / PDF」。</p>
+    <p>1. 左侧切到「编辑」，直接输入 Markdown，或点「导入文件 / 识别图片」导入 PDF / Word / 图片 / TXT；<br>
+       2. 公式用 <code>$...$</code>（行内）或 <code>$...$</code>（独立成行）；<br>
+       3. 右侧实时预览，满意后点「导出 PNG / PDF」。左侧「预览」可只读查看原文。</p>
+    <div class="divider"></div>
+    <p><b>单篇 / 批量</b></p>
+    <p>左栏工具栏右侧可切「单篇 / 批量」：单篇即时出稿；批量把多个文件排队，逐个转写并缓存（不刷新即可随时点看），勾选后可一次批量导出。</p>
     <div class="divider"></div>
     <p><b>支持哪些公式？</b></p>
     <p>由 MathJax 渲染，支持分数、根号、上下标、求和、积分、矩阵、希腊字母等几乎全部 LaTeX 数学语法。</p>
@@ -336,16 +362,16 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     <p>本页<b>没有服务器</b>：所有计算都在你的浏览器里完成，内容不会上传，也不写入本地存储；关闭或刷新页面即彻底消失。</p>
     <div class="divider"></div>
     <p><b>小技巧</b></p>
-    <p>· 想更「手写」一点：调高<b>抖动强度</b>与<b>基线漂移</b>；<br>
-       · 想更工整：把抖动降到 0.3 以下，字体选 Patrick；<br>
-       · 中文内容请选择「马善政 / 龙藏 / 系统楷体」字体；<br>
+    <p>· 想更「手写」一点：把<b>手写程度</b>调到「随性」，或调高<b>抖动强度</b>与<b>基线漂移</b>；<br>
+       · 想更工整：手写程度选「工整」，再把抖动降到 0.3 以下；<br>
+       · 中文字体默认 <b>Zen 圆珠笔手写</b>（推荐），英文默认 <b>Caveat</b>，中英可分别挑选；<br>
+       · 公式会跟随所选字体一起手写化，字号已按层级自动匹配；<br>
        · 换随机种子可以得到完全不同的一版排版。</p>
   </div>
   <div class="dlg-foot"><button class="btn primary" id="helpClose" type="button">知道了</button></div>
 </dialog>
 
 <!-- ============ 脚本（全部本地，经典脚本以兼容 file://） ============ -->
-
 <script src="../vendor/jspdf.umd.min.js"></script>
 <script src="../vendor/mathjax/tex-svg.js"></script>
 <script src="../vendor/mammoth.browser.min.js"></script>
@@ -419,6 +445,42 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       await sleep(1200);
       if (a === b) throw new Error("换英文字体未改变输出");
       return "中文不变、英文换字体 → 输出不同";
+    });
+
+    await t("模式：非当前模式的面板必须真正不占位（回归）", async function(){
+      /* 曾因作者样式的 display:flex 覆盖 [hidden] 的 display:none，
+         导致单篇模式下队列面板也显示出来 */
+      var qp = $("queuePanel"), ev = $("editView"), ip = $("inputPreview");
+      function vis(el){ return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
+      if (getComputedStyle(qp).display !== "none") throw new Error("单篇模式下队列面板 display=" + getComputedStyle(qp).display);
+      if (vis(qp)) throw new Error("单篇模式下队列面板仍占位");
+      if (!vis(ev)) throw new Error("单篇模式下编辑视图应可见");
+      if (vis(ip)) throw new Error("编辑视图下预览面板不该占位");
+      $("modeQueue").click();
+      await sleep(500);
+      if (!vis(qp)) throw new Error("队列模式下队列面板应可见");
+      if (!vis(ev)) throw new Error("队列模式下编辑视图仍应可见（批量是编辑视图的子模式）");
+      $("modeSingle").click();
+      await sleep(500);
+      if (vis(qp)) throw new Error("切回单篇后队列面板仍占位");
+      return "面板互斥，且 hidden 生效";
+    });
+
+    await t("视图：编辑 / 预览 互斥切换（Word 式工具栏）", async function(){
+      function vis(id){ var el = $(id); return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
+      if (!vis("editView") || vis("inputPreview")) throw new Error("默认应停在编辑视图");
+      $("modePreview").click();
+      await sleep(400);
+      if (vis("editView") || !vis("inputPreview")) throw new Error("预览视图未生效");
+      if (vis("sourceTools") || vis("queueTools")) throw new Error("预览视图不该显示编辑工具");
+      if (!$("inputPreview").textContent.length) throw new Error("预览应有内容");
+      $("modeEdit").click();
+      await sleep(400);
+      if (!vis("editView") || vis("inputPreview")) throw new Error("切回编辑视图失败");
+      if (!vis("sourceTools")) throw new Error("编辑视图应显示字体工具");
+      if (!$("fontSize")) throw new Error("字号控件应在左栏工具栏内");
+      if (!$("textColor")) throw new Error("字色控件应在左栏工具栏内");
+      return "编辑/预览互斥，工具栏随视图切换";
     });
 
     await t("模式：单篇 / 批量队列 可切换", async function(){

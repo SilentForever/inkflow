@@ -173,7 +173,7 @@
       var wPx = ex.wEx * exPx, hPx = ex.hEx * exPx, dPx = ex.depthEx * exPx;
 
       /* 先用「未手写化」的原始 SVG 量出每个字形的真实位置 */
-      var measured = measure(svg0, wPx, hPx, fams.length ? fams : []);
+      var measured = measure(svg0, wPx, hPx, fams.length ? fams : [], fontPx);
       var glyphs = measured.glyphs, lines = measured.lines, kept = measured.kept;
 
       /* 手写化抖动 */
@@ -198,7 +198,7 @@
   }
 
   /* 测量：把 SVG 插进隐藏容器让浏览器布局，再用 getBoundingClientRect 取真实几何 */
-  function measure(svg0, wPx, hPx, fams) {
+  function measure(svg0, wPx, hPx, fams, fontPx) {
     var host = document.createElement("div");
     host.setAttribute("aria-hidden", "true");
     host.style.cssText = "position:fixed;left:-20000px;top:0;width:0;height:0;overflow:hidden;";
@@ -214,13 +214,45 @@
     var REF = 100;
     var glyphs = [], lines = [], kept = [];
 
-    function fit(glyph, fam, targetH) {
+    /* 关键：字号与基线都从 SVG 的 transform 里解析，而不是用「墨迹框高度」。
+       用墨迹高度会把 MathJax 拉伸过的括号 / 根号一并放大（括号被撑到约 1.6em），
+       而正常手写里括号不会那么大。这里对每个字形累计 transform：
+         sc  = 局部缩放（分式里是 0.707）→ 字号 = fontPx × sc
+         M.f = 字形基线在 viewBox 里的 y → 换算成公式框内的基线像素
+       于是 x / + 与 a / b 同字号，只有位置不同。 */
+    var vb = (live.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+    var vbY = isFinite(vb[1]) ? vb[1] : 0, vbH = vb[3] > 0 ? vb[3] : hPx;
+    var uScale = hPx / vbH;
+
+    function parseTf(s) {
+      var M = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+      if (!s) return M;
+      var re = /(translate|scale|matrix|rotate)\s*\(([^)]*)\)/g, mm;
+      while ((mm = re.exec(s))) {
+        var v = mm[2].split(/[\s,]+/).map(Number), T;
+        if (mm[1] === "translate") T = { a: 1, b: 0, c: 0, d: 1, e: v[0] || 0, f: (v.length > 1 ? v[1] : 0) || 0 };
+        else if (mm[1] === "scale") T = { a: v[0], b: 0, c: 0, d: (v.length > 1 ? v[1] : v[0]), e: 0, f: 0 };
+        else if (mm[1] === "matrix") T = { a: v[0], b: v[1], c: v[2], d: v[3], e: v[4], f: v[5] };
+        else { var rr = v[0] * Math.PI / 180, cc = Math.cos(rr), ss = Math.sin(rr); T = { a: cc, b: ss, c: -ss, d: cc, e: 0, f: 0 }; }
+        M = { a: M.a * T.a + M.c * T.b, b: M.b * T.a + M.d * T.b,
+              c: M.a * T.c + M.c * T.d, d: M.b * T.c + M.d * T.d,
+              e: M.a * T.e + M.c * T.f + M.e, f: M.b * T.e + M.d * T.f + M.f };
+      }
+      return M;
+    }
+    function mul(M, T) {
+      return { a: M.a * T.a + M.c * T.b, b: M.b * T.a + M.d * T.b,
+               c: M.a * T.c + M.c * T.d, d: M.b * T.c + M.d * T.d,
+               e: M.a * T.e + M.c * T.f + M.e, f: M.b * T.e + M.d * T.f + M.f };
+    }
+
+    function fit(glyph, fam, sc) {
       mc.font = REF + 'px "' + fam + '"';
       var a = 0, d = 0;
       try { var mt = mc.measureText(glyph); a = mt.actualBoundingBoxAscent || 0; d = mt.actualBoundingBoxDescent || 0; } catch (e) {}
-      var nat = a + d; if (!(nat > 0)) { nat = REF * 0.72; a = nat * 0.75; d = nat * 0.25; }
-      var size = targetH * REF / nat;
-      return { size: size, asc: a * size / REF };
+      if (!(a + d > 0)) { a = REF * 0.72; d = REF * 0.24; }
+      var size = Math.max(1, fontPx * (sc > 0 ? sc : 1));
+      return { size: size, asc: a * size / REF, desc: d * size / REF };
     }
 
     var uses = live.querySelectorAll("use");
@@ -230,23 +262,33 @@
       var code = u.getAttribute("data-c");
       var ch = charOf(code);
       var cxPx = b.left - sr.left + b.width / 2;
-      var topPx = b.top - sr.top;
+
+      /* 由外到内累计 transform */
+      var chain = [], p = u.parentNode;
+      while (p && p !== live) { chain.unshift(p); p = p.parentNode; }
+      var M = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+      for (var ci = 0; ci < chain.length; ci++) {
+        M = mul(M, parseTf(chain[ci].getAttribute && chain[ci].getAttribute("transform")));
+      }
+      var sc = Math.sqrt(Math.abs(M.a * M.d - M.b * M.c)) || 1;
+      var baseY = (M.f - vbY) * uScale;
+
       var comp = COMPOSITES[code];
       if (comp) {
         var ok = true, sub = [];
-        for (var ci = 0; ci < comp.length; ci++) {
-          var pf = pickFont(fams, comp[ci].c);
+        for (var cj = 0; cj < comp.length; cj++) {
+          var pf = pickFont(fams, comp[cj].c);
           if (!pf) { ok = false; break; }
-          var f = fit(comp[ci].c, pf, b.height * comp[ci].s);
-          sub.push({ ch: comp[ci].c, fam: pf, size: f.size,
-                     cx: cxPx, baseY: topPx + f.asc + comp[ci].dy * f.size, rot: 0 });
+          var f = fit(comp[cj].c, pf, sc);
+          sub.push({ ch: comp[cj].c, fam: pf, size: f.size,
+                     cx: cxPx, baseY: baseY + comp[cj].dy * f.size, rot: 0 });
         }
         if (ok) { glyphs = glyphs.concat(sub); continue; }
       }
       var fam = ch ? pickFont(fams, ch) : null;
       if (!fam) { kept.push(u); continue; }
-      var f2 = fit(ch, fam, b.height);
-      glyphs.push({ ch: ch, fam: fam, size: f2.size, cx: cxPx, baseY: topPx + f2.asc, rot: 0 });
+      var f2 = fit(ch, fam, sc);
+      glyphs.push({ ch: ch, fam: fam, size: f2.size, cx: cxPx, baseY: baseY, rot: 0 });
     }
 
     var rects = live.querySelectorAll("rect");

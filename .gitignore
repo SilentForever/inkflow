@@ -6,5 +6,5 @@ node_modules/
 Thumbs.db
 *.log
 
-# 测试输出（截图可按需保留，这里忽略中间产物）
-tests/out/*.tmp.png
+# 测试截图等中间产物（本地复核用，不入库）
+tests/out/

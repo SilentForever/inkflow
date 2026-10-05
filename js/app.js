@@ -159,7 +159,7 @@
 
   async function doRender() {
     var token = ++renderToken;
-    var src = els.source.value;
+    var src = els.source ? els.source.value : "";
     state.source = src;
     if (!src.trim()) {
       pages = []; currentPage = 0;
@@ -329,7 +329,7 @@
     /* ---------- 常规控件 ---------- */
     bindSelect("pageSize", "pageSize");
     bindSelect("paper", "paper");
-    bindRange("fontSize", "fontSize", function (v) { return v + " px"; });
+    bindRange("fontSize", "fontSize", function (v) { return v + "px"; });
     bindRange("lineHeight", "lineHeight", function (v) { return v.toFixed(2) + "×"; });
     bindRange("letterSpacing", "letterSpacing", function (v) { return v.toFixed(1) + " px"; });
     bindRange("formulaScale", "formulaScale", function (v) { return v.toFixed(2) + "×"; });
@@ -359,7 +359,7 @@
     var re = $("reseed");
     if (re) re.addEventListener("click", function () { state.seed = Math.floor(Math.random() * 1e9); if (seed) seed.value = String(state.seed); scheduleRender(true); toast("已生成新随机种子", "ok", 1600); });
 
-    els.source.addEventListener("input", function () { updateCounts(); scheduleRender(); });
+    if (els.source) els.source.addEventListener("input", function () { updateCounts(); if (view === "preview") renderInputPreview(); scheduleRender(); });
 
     var prev = $("prevPage"), next = $("nextPage");
     if (prev) prev.addEventListener("click", function () { paintPage(currentPage - 1); });
@@ -423,7 +423,7 @@
 
     /* ---------- 导入：文件 / 图片 / 粘贴识别 ---------- */
     if (global.InkImport) global.InkImport.bind({
-      getSource: function () { return els.source; },
+      getSource: function () { return els.source || $("source"); },
       toast: toast,
       queueMode: function () { return mode === "queue"; },
       onItem: function (name, kind, text) { global.InkQueue.add(name, kind, text); },
@@ -460,6 +460,46 @@
     var tcol = $("textColor");
     if (tcol) { tcol.value = state.textColor; tcol.addEventListener("input", function () { state.textColor = tcol.value; scheduleRender(); }); }
     bindRange("textScale", "textScale", function (v) { return v.toFixed(2) + "×"; });
+
+    /* ---------- 左栏视图：编辑 / 预览（互斥，对应 Word 的视图切换） ---------- */
+    var view = "edit";
+    function renderInputPreview() {
+      var pv = $("inputPreview"); if (!pv) return;
+      var txt = els.source ? els.source.value : "";
+      pv.innerHTML = "";
+      if (!txt.trim()) {
+        var d = document.createElement("div");
+        d.className = "pv-empty";
+        d.textContent = "（空）切到「编辑」视图输入或导入文档。";
+        pv.appendChild(d); return;
+      }
+      /* 轻量高亮：公式（行内 $..$ / 独立 $..$）与 Markdown 标题，不做解析渲染 */
+      var re = /(\$\$[\s\S]*?\$\$|\$[^$\n]*?\$|^#{1,6}\s.*$)/gm, last = 0, m;
+      var frag = document.createDocumentFragment();
+      while ((m = re.exec(txt))) {
+        if (m.index > last) frag.appendChild(document.createTextNode(txt.slice(last, m.index)));
+        var mk = document.createElement("mark"); mk.textContent = m[0]; frag.appendChild(mk);
+        last = m.index + m[0].length;
+      }
+      if (last < txt.length) frag.appendChild(document.createTextNode(txt.slice(last)));
+      pv.appendChild(frag);
+    }
+    function setView(v) {
+      view = v;
+      var me = $("modeEdit"), mp = $("modePreview");
+      if (me) me.setAttribute("aria-pressed", v === "edit" ? "true" : "false");
+      if (mp) mp.setAttribute("aria-pressed", v === "preview" ? "true" : "false");
+      var ev = $("editView"), pv = $("inputPreview");
+      if (ev) ev.hidden = (v !== "edit");
+      if (pv) pv.hidden = (v !== "preview");
+      /* 工具只属于「编辑」视图，预览时不显示 */
+      var st = $("sourceTools"), qt = $("queueTools");
+      if (st) st.hidden = (v !== "edit");
+      if (qt) qt.hidden = (v !== "edit");
+      if (v === "preview") renderInputPreview();
+    }
+    if ($("modeEdit")) $("modeEdit").addEventListener("click", function () { setView("edit"); });
+    if ($("modePreview")) $("modePreview").addEventListener("click", function () { setView("preview"); });
 
     /* ---------- 单篇 / 批量 模式切换 ---------- */
     var mode = "single";
@@ -568,6 +608,7 @@
     }});
 
     setMode("single");
+    setView("edit");
 
     /* ---------- 生成按钮 + 自动重绘开关 ---------- */
     var regen = $("regenerate");
@@ -624,7 +665,7 @@
   function updateCounts() {
     var el = $("counts");
     if (!el) return;
-    var s = els.source.value;
+    var s = els.source ? els.source.value : "";
     var chars = s.length;
     var lines = s ? s.split("\n").length : 0;
     el.textContent = chars + " 字符 · " + lines + " 行";
@@ -651,7 +692,7 @@
     }
 
     // 载入示例
-    els.source.value = global.InkSamples.equation;
+    if (els.source) els.source.value = global.InkSamples.equation;
     updateCounts();
     scheduleRender(true);
   }
