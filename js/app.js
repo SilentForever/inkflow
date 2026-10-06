@@ -467,15 +467,17 @@
     if (hclose) hclose.addEventListener("click", function () { var d = $("helpDlg"); if (d) d.close(); });
 
     /* ---------- 导入：文件 / 图片 / 粘贴识别 ---------- */
-    function afterImport() {
+    /* 单篇导入 → 自动进「编辑」页；多篇导入 → 留在导入页并就地展开批量队列 */
+    function afterImport(info) {
       updateCounts();
-      if (mode === "queue") { setView("edit"); renderQueueList(); }   // 批量：停在队列
-      else { setView("edit"); scheduleRender(true); }                 // 单篇：导入后自动进入「编辑」页
+      var added = (info && info.added) || 0;
+      if (added > 0) { setView("import"); renderQueueList(); }   // 批量：回到导入页，队列就地展开
+      else { setView("edit"); scheduleRender(true); }            // 单篇：进「编辑」页
     }
     if (global.InkImport) global.InkImport.bind({
       getSource: function () { return els.source || $("source"); },
       toast: toast,
-      queueMode: function () { return mode === "queue"; },
+      queueMode: function () { return false; },   // 模式已取消：由文件数决定单篇 / 批量
       onItem: function (name, kind, text) { global.InkQueue.add(name, kind, text); },
       onDone: afterImport
     });
@@ -535,9 +537,8 @@
 
     /* ---------- 左栏页签：导入（默认） / 编辑 ---------- */
     var view = "import";
-    var mode = "single";
     /* 面板可见性统一由 syncPanels 决定：
-       导入页 = 导入面板；编辑页单篇 = 编辑器；编辑页批量 = 队列 */
+       导入页 = 导入面板（+ 批量队列，导入 ≥2 篇后自动出现）；编辑页 = 单篇编辑器 */
     function syncPanels() {
       var ti = $("tabImport"), te = $("tabEdit");
       var importTab = (view === "import");
@@ -545,8 +546,30 @@
       if (te) te.setAttribute("aria-selected", !importTab ? "true" : "false");
       var iv = $("importView"), ew = $("editorWrap"), qp = $("queuePanel");
       if (iv) iv.hidden = !importTab;
-      if (ew) ew.hidden = !(view === "edit" && mode === "single");
-      if (qp) qp.hidden = !(view === "edit" && mode === "queue");
+      if (ew) ew.hidden = (view !== "edit");
+      /* 批量队列内联在「导入」页：导入 ≥2 篇后自动出现，无需手动切换模式 */
+      if (qp) {
+        var hasQ = !!(global.InkQueue && global.InkQueue.items().length);
+        var head = iv ? iv.querySelector(".queue-head") : null;
+        if (importTab && hasQ) {
+          if (qp.parentNode !== iv) {
+            if (!head) {
+              head = document.createElement("div");
+              head.className = "queue-head";
+              head.innerHTML = '<span class="queue-head-title">批量队列</span>' +
+                '<span class="queue-head-hint">已导入 <b id="queueCount">0</b> 篇 · 点「全部转写」生成，或点某篇单独预览</span>';
+              iv.appendChild(head);
+            }
+            iv.appendChild(qp);
+          }
+          if (head) head.hidden = false;
+          qp.hidden = false;
+          var qc = $("queueCount"); if (qc) qc.textContent = String(global.InkQueue.items().length);
+        } else {
+          qp.hidden = true;
+          if (head) head.hidden = true;
+        }
+      }
     }
     function setView(v) {
       view = (v === "edit") ? "edit" : "import";
@@ -554,20 +577,12 @@
       if (view === "edit" && els.source) els.source.focus();
     }
     if ($("tabImport")) $("tabImport").addEventListener("click", function () { setView("import"); });
-    if ($("tabEdit")) $("tabEdit").addEventListener("click", function () { setView("edit"); });
+    if ($("tabEdit")) $("tabEdit").addEventListener("click", function () {
+      if (global.InkQueue) global.InkQueue.clearAll();   // 进入编辑 = 开始单篇：清掉上一批
+      setView("edit");
+    });
 
-    /* ---------- 单篇 / 批量 模式切换（批量是「编辑」页的子模式） ---------- */
-    function setMode(m) {
-      mode = (m === "queue") ? "queue" : "single";
-      var ms = $("modeSingle"), mq = $("modeQueue");
-      if (ms) ms.setAttribute("aria-pressed", mode === "single" ? "true" : "false");
-      if (mq) mq.setAttribute("aria-pressed", mode === "queue" ? "true" : "false");
-      if (mode === "queue") view = "edit";   // 批量属于「编辑」页
-      syncPanels();
-      renderQueueList();
-      if (mode === "queue") { var cur = global.InkQueue.current(); if (cur) showQueueItem(cur.id); }
-      else scheduleRender(true);
-    }
+    /* ---------- 批量队列（内联在「导入」页） ---------- */
     function showQueueItem(id) {
       var it = global.InkQueue.select(id);
       if (!it) return;
@@ -627,9 +642,6 @@
       all.checked = list.length > 0 && ck === list.length;
       all.indeterminate = ck > 0 && ck < list.length;
     }
-    if ($("modeSingle")) $("modeSingle").addEventListener("click", function () { setMode("single"); });
-    if ($("modeQueue")) $("modeQueue").addEventListener("click", function () { setMode("queue"); });
-
     /* 队列按钮 */
     if ($("queueRun")) $("queueRun").addEventListener("click", function () {
       if (!global.InkQueue.items().length) return toast("队列为空，先导入文件", "warn");
@@ -656,10 +668,12 @@
 
     /* 队列状态变化时重绘列表 */
     if (global.InkQueue) global.InkQueue.bind({ toast: toast, onChange: function () {
-      if (mode === "queue") { renderQueueList(); var cur = global.InkQueue.current(); if (cur && cur.pages) { pages = cur.pages; currentPage = 0; paintPage(0); } }
+      syncPanels();
+      renderQueueList();
+      var cur = global.InkQueue.current();
+      if (cur && cur.pages) { pages = cur.pages; currentPage = 0; paintPage(0); }
     }});
 
-    setMode("single");
     setView("import");
 
     /* ---------- 生成按钮 + 自动重绘开关 ---------- */

@@ -79,13 +79,6 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
             <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
             <output id="textScaleOut">1.00×</output>
           </label>
-          <!-- 输入模式：单篇 / 批量（贴右） -->
-          <div class="tool-group queue-seg" id="queueTools">
-            <div class="seg" role="group" aria-label="输入模式">
-              <button type="button" class="seg-btn" id="modeSingle" aria-pressed="true">单篇</button>
-              <button type="button" class="seg-btn" id="modeQueue" aria-pressed="false">批量</button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -109,28 +102,28 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
             <button class="link-btn" id="importImage" type="button">识别图片</button>
           </div>
         </div>
+
+        <!-- 批量队列：内联在导入页，导入 ≥2 篇后自动出现（无手动切换） -->
+        <div class="queue-panel" id="queuePanel" hidden>
+          <div class="queue-bar">
+            <button class="btn sm primary" id="queueRun" type="button">全部转写</button>
+            <button class="btn sm" id="queueStop" type="button" disabled>停止</button>
+            <span class="import-sep" aria-hidden="true"></span>
+            <label class="auto-toggle"><input type="checkbox" id="queueAll"> 全选</label>
+            <button class="btn sm" id="queueExport" type="button">导出选中</button>
+            <button class="btn sm ghost" id="queueClear" type="button">清空</button>
+          </div>
+          <div class="queue-progress" id="queueProgress" hidden>
+            <div class="qbar"><span id="queueBarFill"></span></div>
+            <div class="qhint" id="queueHint">—</div>
+          </div>
+          <ul class="queue-list" id="queueList" aria-label="待转写文档"></ul>
+          <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
+        </div>
       </div>
 
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
-
-      <!-- 批量队列 -->
-      <div class="queue-panel" id="queuePanel" hidden>
-        <div class="queue-bar">
-          <button class="btn sm primary" id="queueRun" type="button">全部转写</button>
-          <button class="btn sm" id="queueStop" type="button" disabled>停止</button>
-          <span class="import-sep" aria-hidden="true"></span>
-          <label class="auto-toggle"><input type="checkbox" id="queueAll"> 全选</label>
-          <button class="btn sm" id="queueExport" type="button">导出选中</button>
-          <button class="btn sm ghost" id="queueClear" type="button">清空</button>
-        </div>
-        <div class="queue-progress" id="queueProgress" hidden>
-          <div class="qbar"><span id="queueBarFill"></span></div>
-          <div class="qhint" id="queueHint">—</div>
-        </div>
-        <ul class="queue-list" id="queueList" aria-label="待转写文档"></ul>
-        <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
-      </div>
 
       <!-- 编辑页：单篇编辑器 -->
       <div class="editor-wrap" id="editorWrap" hidden>
@@ -440,29 +433,35 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "中文不变、英文换字体 → 输出不同";
     });
 
-    await t("面板：导入页 / 编辑器 / 队列 互斥且默认停在导入页", async function(){
+    await t("面板：导入页 / 编辑页 互斥；队列内联在导入页、空队列时不占位", async function(){
       /* 曾因作者样式的 display:flex 覆盖 [hidden] 的 display:none，
          导致非当前面板也显示出来；改为统一由 syncPanels 控制 */
       function vis(id){ var el = $(id); return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
+      window.InkQueue.clearAll();
       /* 默认：导入页可见，编辑器与队列都不占位 */
       if (!vis("importView")) throw new Error("默认应停在导入页");
       if (vis("editorWrap")) throw new Error("默认导入页下编辑器不该占位");
-      if (vis("queuePanel")) throw new Error("默认导入页下队列不该占位");
-      /* 切到「编辑」页（单篇）→ 编辑器可见 */
+      if (vis("queuePanel")) throw new Error("队列为空时不该占位");
+      /* 切到「编辑」页 → 编辑器可见，导入页与队列都隐藏 */
       $("tabEdit").click(); await sleep(300);
       if (vis("importView") || !vis("editorWrap")) throw new Error("编辑页未生效");
-      if (vis("queuePanel")) throw new Error("单篇下队列不该占位");
-      /* 批量 → 队列面板可见、编辑器隐藏 */
-      $("modeQueue").click(); await sleep(300);
-      if (!vis("queuePanel")) throw new Error("批量下队列应可见");
+      if (vis("queuePanel")) throw new Error("编辑页下队列不该占位");
+      /* 单篇 / 批量 切换按钮已移除：由文件数自动决定 */
+      if ($("modeSingle") || $("modeQueue") || $("queueTools")) throw new Error("单篇/批量切换按钮应已移除");
+      /* 一次导入 2 篇（多选）→ 留在导入页并就地展开批量队列 */
+      await window.InkImport.handleFiles([new File(["$a^2$"], "a.md"), new File(["$b^2$"], "b.md")]);
+      await sleep(400);
+      if (!vis("importView")) throw new Error("批量导入后应留在导入页");
+      if (!vis("queuePanel")) throw new Error("导入 ≥2 篇后队列应自动展开");
       if (vis("editorWrap")) throw new Error("批量下编辑器不该占位");
-      /* 回单篇 */
-      $("modeSingle").click(); await sleep(300);
-      if (vis("queuePanel") || !vis("editorWrap")) throw new Error("切回单篇失败");
-      /* 回导入页 */
-      $("tabImport").click(); await sleep(300);
-      if (!vis("importView") || vis("editorWrap")) throw new Error("切回导入页失败");
-      return "导入 / 编辑 / 队列 三者互斥";
+      if (document.querySelectorAll("#queueList li").length !== 2) throw new Error("队列应有 2 篇");
+      /* 点「编辑」→ 清空队列并进入单篇编辑器 */
+      $("tabEdit").click(); await sleep(300);
+      if (window.InkQueue.items().length !== 0) throw new Error("进入编辑页应清空队列");
+      if (vis("queuePanel") || !vis("editorWrap")) throw new Error("切到编辑页失败");
+      window.InkQueue.clearAll();
+      $("tabImport").click(); await sleep(200);   // 复位到默认「导入」页，避免影响后续用例
+      return "导入 / 编辑 互斥；多选自动批量";
     });
 
     await t("视图：导入 / 编辑 页签切换（WPS 式工具栏）", async function(){
@@ -480,20 +479,26 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "导入 / 编辑页签互斥，工具栏含字体 / 字号 / 字色";
     });
 
-    await t("模式：单篇 / 批量队列 可切换", async function(){
-      if ($("queuePanel").hidden !== true) throw new Error("初始应隐藏队列面板");
-      $("modeQueue").click();
-      await sleep(300);
-      if ($("queuePanel").hidden) throw new Error("切到队列后面板仍隐藏");
-      $("modeSingle").click();
-      await sleep(300);
-      if (!$("queuePanel").hidden) throw new Error("切回单篇后面板未隐藏");
-      return "切换正常";
+    await t("导入：单篇进「编辑」页、多篇就地成批量（无模式开关）", async function(){
+      if ($("modeSingle") || $("modeQueue") || $("queueTools")) throw new Error("单篇/批量切换按钮应已移除");
+      window.InkQueue.clearAll();
+      /* 单篇 → 自动进入「编辑」页，且不进队列 */
+      await window.InkImport.handleFiles([new File(["$x=1$"], "one.md")]);
+      await sleep(500);
+      if ($("tabEdit").getAttribute("aria-selected") !== "true") throw new Error("单篇导入应进入编辑页");
+      if ($("source").value.indexOf("x=1") < 0) throw new Error("单篇内容未写入编辑器");
+      if (window.InkQueue.items().length !== 0) throw new Error("单篇不该进队列");
+      /* 多篇 → 留在导入页，队列自动出现 */
+      $("tabImport").click(); await sleep(150);
+      await window.InkImport.handleFiles([new File(["$a$"], "a.md"), new File(["$b$"], "b.md")]);
+      await sleep(400);
+      if ($("queuePanel").hidden) throw new Error("多篇导入后队列应展开");
+      if (document.querySelectorAll("#queueList li").length !== 2) throw new Error("队列应有 2 篇");
+      window.InkQueue.clearAll(); await sleep(120);
+      return "单篇→编辑页 / 多篇→就地批量";
     });
 
     await t("队列：多文档排队转写 + 缓存 + 批量导出可选", async function(){
-      $("modeQueue").click();
-      await sleep(200);
       var Q = window.InkQueue;
       Q.clearAll();
       Q.add("几何.md", "text", "$\\because\\ \\angle A=45^\\circ$，$\\triangle ABC\\cong\\triangle DEF$。");
@@ -516,7 +521,7 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       /* 勾选与批量导出集合 */
       if (Q.checked().length !== 2) throw new Error("勾选数应为 2，实际 " + Q.checked().length);
       if (Q.allPagesOf(Q.checked()).length < 2) throw new Error("合并页数不足");
-      $("modeSingle").click();
+      Q.clearAll();
       await sleep(200);
       return "2 完成 / 1 失败 / 缓存命中 / 勾选 2";
     });

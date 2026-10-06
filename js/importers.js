@@ -204,6 +204,8 @@
     files = Array.prototype.slice.call(files || []);
     if (!files.length) return;
     var acc = [];
+    var added = 0;                                  // 入队（批量）计数
+    var multi = files.length > 1;                   // 多选即批量，无需手动切换模式
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       var name = f.name || "image";
@@ -224,9 +226,10 @@
 
         text = String(text || "").trim();
         if (!text) { ctx.toast(name + "：未识别到内容", "warn", 3600); continue; }
-        if (ctx.queueMode && ctx.queueMode()) {
-          /* 批量模式：逐个入队，转写交给队列 */
+        if (multi || (ctx.queueMode && ctx.queueMode())) {
+          /* 多选 / 批量：逐个入队，转写交给队列 */
           if (ctx.onItem) ctx.onItem(name, ext || "text", text);
+          added++;
           setStatus("已加入队列：" + name, "ok");
         } else {
           acc.push(text);
@@ -242,9 +245,10 @@
         var cur = src.value.trim();
         src.value = cur ? (cur + "\n\n" + acc.join("\n\n")) : acc.join("\n\n");
       }
-      ctx.onDone && ctx.onDone();
       ctx.toast("已导入 " + acc.length + " 个文件（仅本地处理）", "ok", 3000);
     }
+    if (added) ctx.toast("已加入队列 " + added + " 个文件（仅本地处理）", "ok", 3000);
+    if (acc.length || added) ctx.onDone && ctx.onDone({ added: added, acc: acc.length });
     setStatus("");
   }
 

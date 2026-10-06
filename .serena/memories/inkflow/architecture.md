@@ -28,10 +28,11 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 ## 左栏（一体化导入面板 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
 - 第 1 行 `.tb-row`：中文字体下拉 + 英文字体下拉（`.font-select` 用 `flex:1 1 108px` 等宽并排）+ 字号数字框 + `px`。
-- 第 2 行 `.tb-row`：B/I/U（`.fmt-btn`，带边框/圆角/`aria-pressed` 选中态）· `.tool-sep` · 字色 · `.tool-sep` · 缩放滑块 · 右端 `.queue-seg{margin-left:auto}` 的 `[单篇|批量]`。
+- 第 2 行 `.tb-row`：B/I/U（`.fmt-btn`，带边框/圆角/`aria-pressed` 选中态）· `.tool-sep` · 字色 · `.tool-sep` · 缩放滑块。（早期右端的 `[单篇|批量]` 手动开关**已移除**——改由文件数自动分流。）
 - 外层 `.input-toolbar{flex-direction:column;overflow:hidden}`，每行 `.tb-row{flex-wrap:wrap}`。**切勿再把这些控件塞进单个不可换行的 flex 组**（历史坑：总宽 ≈600px > 左栏 ≈477px → 横向溢出到中栏）。
-工具栏下方是 `[导入|编辑]` 页签：**默认停在「导入」页**，该页整块是**一体化导入面板** `#dropCard`（点卡片任意位置弹文件选择（多选）；`#dropzone` 整列可拖入；卡片下方「粘贴文本 / 识别图片」两个文字入口）。导入完成自动切到「编辑」页；「编辑」页是 Markdown/LaTeX 文本框，批量队列也挂在「编辑」页下。
-- 面板可见性统一由 `js/app.js` 的 `syncPanels()` 单点控制 `hidden`（导入页 / 编辑器 `#editorWrap` / 队列 `#queuePanel`），避免作者样式的 `display` 覆盖 `[hidden]`。
+工具栏下方是 `[导入|编辑]` 页签：**默认停在「导入」页**，该页整块是**一体化导入面板** `#dropCard`（点卡片任意位置弹文件选择（多选）；`#dropzone` 整列可拖入；卡片下方「粘贴文本 / 识别图片」两个文字入口）。
+- **单篇 / 批量由文件数自动分流，无手动开关**：`InkImport.handleFiles` 里 `multi = files.length>1`。单篇（1 个文件）→ 写入编辑器并自动切到「编辑」页；多篇（≥2）→ 逐篇入队，**批量队列 `#queuePanel` 就地展开在导入页**（卡片下方，自动生成「批量队列 · 已导入 N 篇」小标题），留在导入页。点「编辑」页签即 `InkQueue.clearAll()` 清空队列、回到单篇。
+- 面板可见性统一由 `js/app.js` 的 `syncPanels()` 单点控制 `hidden`（导入页 / 编辑器 `#editorWrap` / 队列 `#queuePanel`），避免作者样式的 `display` 覆盖 `[hidden]`。队列的**挂载位置**（`parentNode`）与显隐也由 `syncPanels()` 决定：空队列不占位。
 - **字号是 `<input type="number">` 数字框**（12–96），由 `bindFontSize()` 绑定，**不是滑杆**。
 - 旧的「只读预览」视图与三个并排导入按钮均已删除。
 - 测试文件 `tests/e2e.html` 内嵌了一份**左栏 + 右栏 DOM 副本**：改 DOM 结构时必须同步改它，否则 e2e 与真实页面不一致。
