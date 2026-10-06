@@ -49,7 +49,8 @@
 - **`github.com` / `api.github.com` 本机 DNS 解析失败**（npm registry 正常）。绕过：`curl --resolve api.github.com:443:140.82.112.6`；`git` 走 SSH（见下）。
 - **推送 GitHub**：gh token 会失效；SSH 走 IP 可用（已认证 `SilentForever`）。已写 `~/.ssh/config` 的 `Host github.com → HostName 140.82.112.3` + `git config url."git@github.com:".insteadOf "https://github.com/"`。
 - **Vercel**：`%APPDATA%\com.vercel.cli\Data\auth.json` 的 token 直连 API 报 `invalidToken`，但 **CLI 会自动刷新** → 用 `vercel ls/inspect` 而非直连 API。
-- Vercel 边缘 IP（`76.76.21.x`）直连 TLS 被重置；`ink.1funnytime.xyz` 等域名本机不可直访。
+- **`vercel` CLI 报 `TypeError: fetch failed`（deploy/ls/inspect 全挂）时，先查代理环境变量**：本机 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY=http://127.0.0.1:7897` 常指向**未启动的代理** → 所有请求被吞。绕过：`env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy vercel …`；`curl` 用 `--noproxy '*'`。这比 DNS 更常见，别误判为 DNS/网络故障。
+- **CLI 直连 Vercel 边缘（`76.76.21.x`）的 TLS 仍会被重置**：`curl https://*.vercel.app/...` 返回 `http=000`，`ping` 却通。故**线上内容核验不能靠 curl 抓页面**；改用 `vercel inspect`（时间戳/别名）+ `git ls-remote`。
 - 云浏览器后端不可达（超时）→ 线上核验改用 Vercel API/CLI 对比 commit。
 
 ## 文档维护
