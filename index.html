@@ -36,37 +36,39 @@
         </div>
       </div>
 
-      <!-- WPS 式工具栏：字体 / 字号 / 文字样式 + 输入模式（对应「开始」选项卡） -->
+      <!-- WPS 式工具栏（对应「开始」选项卡）：两行分组，整齐不溢出 -->
       <div class="input-toolbar">
-        <div class="tool-group" id="sourceTools">
+        <div class="tb-row">
           <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
           <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
-          <span class="tool-sep" aria-hidden="true"></span>
           <label class="tool-size" title="字号">
             <input type="number" id="fontSize" class="font-size-input" min="12" max="96" step="1" value="28" aria-label="字号">
             <span class="tool-size-unit">px</span>
           </label>
+        </div>
+        <div class="tb-row">
+          <div class="tool-group">
+            <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
+            <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
+            <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
+          </div>
           <span class="tool-sep" aria-hidden="true"></span>
-          <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
-          <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
-          <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
           <label class="fmt-color" title="字色">
             <input type="color" id="textColor" value="#1b2a5e">
             <span>字色</span>
           </label>
+          <span class="tool-sep" aria-hidden="true"></span>
           <label class="fmt-slider" title="文字缩放">
             <span>缩放</span>
             <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
             <output id="textScaleOut">1.00×</output>
           </label>
-        </div>
-
-        <!-- 批量队列工具：单篇 / 批量 -->
-        <div class="tool-group queue-seg" id="queueTools">
-          <span class="tool-sep" aria-hidden="true"></span>
-          <div class="seg" role="group" aria-label="输入模式">
-            <button type="button" class="seg-btn" id="modeSingle" aria-pressed="true">单篇</button>
-            <button type="button" class="seg-btn" id="modeQueue" aria-pressed="false">批量</button>
+          <!-- 输入模式：单篇 / 批量（贴右） -->
+          <div class="tool-group queue-seg" id="queueTools">
+            <div class="seg" role="group" aria-label="输入模式">
+              <button type="button" class="seg-btn" id="modeSingle" aria-pressed="true">单篇</button>
+              <button type="button" class="seg-btn" id="modeQueue" aria-pressed="false">批量</button>
+            </div>
           </div>
         </div>
       </div>

@@ -9,6 +9,13 @@
 - `hidden` 属性会被作者样式 `display:flex` 覆盖 → 全局 `[hidden]{display:none !important;}`。
 - 网格行必须确定高度：`.main{grid-template-rows:minmax(0,1fr)}`，否则 flex:1 子项塌成 0。
 - 窄屏（≤820px）单栏堆叠时左栏会塌成 0 高度 → 给 `.col` 确定高度 `min(82vh,760px)`。
+- **左栏工具栏溢出**：若把「字体×2+字号+B/I/U+字色+缩放+模式」塞进**一个不可换行的 flex 组**，子项总宽 ≈600px > 左栏 ≈477px → 整组横向溢出到中栏、字号框被压、字色/缩放换行。正解：外层 `flex-direction:column` 拆两行 `.tb-row`，每行各自 `flex-wrap:wrap`。自查：`toolbar.scrollWidth > toolbar.clientWidth`。
+
+## 字体
+- **分批加载后选非默认字体不生效**：`boot()` 后台补齐回调曾用错键名 `state.fontCJK`（真名 `state.fontKeyCJK`）→ 条件永假不重绘，选到未加载字体就画成回退字体。改键名后修复。
+- **按需加载**：字体下拉 `pickFont()` 选到未加载字体时先 `await loadFontFamily(fam)` 再重绘，不要假设全部字体首屏已就绪。
+- **`document.fonts.check("16px X")` 不可靠**（对未注册家族也返回 true）；要枚举用 `Array.from(document.fonts).map(f=>f.family+"/"+f.status)`（`[].map.call` 对 FontFaceSet 无效，它没有 `length`）。
+- **探针脚本必须放在项目目录内**（如 `D:\转手写字体\_probe.html`），放 `D:\tmp\` 会让相对 `src="../js/..."` 404，页面不 boot。
 
 ## 公式
 - 旧实现用墨迹高度反推字号 → 括号/根号被拉大；已改为变换矩阵推导（见 `mem:inkflow/architecture`）。

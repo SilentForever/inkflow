@@ -42,12 +42,14 @@
   /* 字体注册：默认字体优先加载，其余后台补齐（首屏更快） */
   var _fontSet = {};           // family|weight → true，避免重复计数
   function _fontKey(f) { return f.family + "|" + f.weight; }
+  function _hasFamily(fam) { for (var k in _fontSet) if (k.indexOf(fam + "|") === 0) return true; return false; }
   function _loadedCount() { return Object.keys(_fontSet).length; }
   function _updateFontBadge() {
     var fb = $("fontBadge");
     if (fb) fb.textContent = "字体 " + _loadedCount() + "/" + FONT_FILES.length;
   }
   async function loadFontEntry(f) {
+    if (_fontSet[_fontKey(f)]) return { family: f.family, ok: true, cached: true };
     try {
       var face = new FontFace(f.family, "url('" + FONT_BASE + f.url + "')", { weight: f.weight, style: "normal" });
       await face.load();
@@ -62,6 +64,13 @@
     var results = [];
     for (var i = 0; i < FONT_FILES.length; i++) results.push(await loadFontEntry(FONT_FILES[i]));
     return results;
+  }
+  /* 按家族名加载某个尚未加载的内置字体（字体下拉按需加载用） */
+  async function loadFontFamily(family) {
+    for (var i = 0; i < FONT_FILES.length; i++) {
+      if (FONT_FILES[i].family === family) return loadFontEntry(FONT_FILES[i]);
+    }
+    return null;   // 系统字体：无需加载
   }
 
   /* ================= 状态 ================= */
@@ -329,12 +338,19 @@
     fillFontSelect("fontCJK", "cjk", state.fontKeyCJK);
     fillFontSelect("fontLat", "lat", state.fontKeyLat);
     var selCJK = $("fontCJK"), selLat = $("fontLat");
-    if (selCJK) selCJK.addEventListener("change", function () {
-      state.fontKeyCJK = selCJK.value; state.fontKey = selCJK.value; scheduleRender(true);
-    });
-    if (selLat) selLat.addEventListener("change", function () {
-      state.fontKeyLat = selLat.value; scheduleRender(true);
-    });
+    function pickFont(sel, keyName, extra) {
+      var key = sel.value;
+      state[keyName] = key; if (extra) state.fontKey = key;
+      var fam = (global.InkRender.FONTS[key] || {}).family;
+      if (fam && !_hasFamily(fam)) {
+        /* 该字体尚未加载（分批加载中）：按需加载后再重绘 */
+        loadFontFamily(fam).then(function () { scheduleRender(true); }, function () { scheduleRender(true); });
+      } else {
+        scheduleRender(true);
+      }
+    }
+    if (selCJK) selCJK.addEventListener("change", function () { pickFont(selCJK, "fontKeyCJK", true); });
+    if (selLat) selLat.addEventListener("change", function () { pickFont(selLat, "fontKeyLat"); });
 
     /* ---------- 手写程度：三档 ---------- */
     function applyHand(level) {
@@ -751,8 +767,8 @@
 
     /* 2) 首屏已出：其余字体后台补齐，补齐后重绘一次（非默认字体即时可用） */
     loadRemainingFonts().then(function () {
-      if (state.fontCJK && !BOOT_FAMILIES[state.fontCJK]) scheduleRender(true);
-      if (state.fontEN && !BOOT_FAMILIES[state.fontEN]) scheduleRender(true);
+      if (state.fontKeyCJK && !BOOT_FAMILIES[state.fontKeyCJK]) scheduleRender(true);
+      if (state.fontKeyLat && !BOOT_FAMILIES[state.fontKeyLat]) scheduleRender(true);
     });
   }
 

@@ -308,7 +308,7 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
    文字样式工具条（加粗 / 斜体 / 下划线 / 字色 / 缩放）
    ============================================================ */
 .fmt-btn{
-  appearance:none;border:1px solid transparent;background:transparent;color:var(--text-2);
+  appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text-2);
   width:30px;height:28px;border-radius:var(--r-sm);cursor:pointer;
   font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;
   transition:background var(--dur),color var(--dur),border-color var(--dur);
@@ -321,43 +321,48 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 .fmt-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
 .fmt-sep{width:1px;height:18px;background:var(--border-strong);margin:0 2px;}
 .fmt-color,.fmt-slider{
-  display:inline-flex;align-items:center;gap:5px;
+  display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
   font-size:12px;color:var(--text-2);cursor:pointer;user-select:none;
 }
 .fmt-color input[type=color]{
   width:26px;height:26px;padding:0;border:1px solid var(--border-strong);
   border-radius:var(--r-sm);background:none;cursor:pointer;
 }
-.fmt-slider input[type=range]{width:84px;}
+.fmt-slider input[type=range]{width:72px;}
 .fmt-slider output{
-  font-variant-numeric:tabular-nums;color:var(--text-3);min-width:44px;
+  font-variant-numeric:tabular-nums;color:var(--text-3);min-width:40px;
   font-size:11.5px;
 }
 
 /* ============================================================
    模式切换 + 批量队列
    ============================================================ */
-/* 左栏：Word 式工具栏（左=视图切换，右=当前视图的工具，互不混排） */
+/* 左栏：WPS 式工具栏（两行分组，窄栏也不溢出） */
 .input-toolbar{
-  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
-  padding:6px 10px;border-bottom:1px solid var(--border);background:var(--surface-2);
+  display:flex;flex-direction:column;gap:7px;
+  padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface-2);
+  max-width:100%;overflow:hidden;
 }
+.tb-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0;}
 .input-toolbar .seg{flex:none;background:var(--bg-deep);}
-.tool-group{display:flex;align-items:center;gap:4px;}
+.tool-group{display:flex;align-items:center;gap:4px;min-width:0;flex:0 0 auto;}
 .tool-group[hidden]{display:none !important;}
-.tool-sep{width:1px;height:18px;background:var(--border-strong);margin:0 3px;}
+.tool-sep{width:1px;height:18px;background:var(--border-strong);margin:0 2px;flex:none;}
+.queue-seg{margin-left:auto;}
 .tool-size{display:inline-flex;align-items:center;gap:4px;color:var(--text-2);font-size:12px;cursor:pointer;}
 .tool-size-ico{font-weight:700;font-size:13px;}
-/* 字体下拉（WPS 式工具栏内联） */
+/* 字体下拉（WPS 式工具栏内联）：随行宽自适应，突出可选字体 */
 .font-select{
-  width:auto;max-width:132px;padding:5px 8px;border:1px solid var(--border-strong);
+  flex:1 1 108px;min-width:0;max-width:100%;
+  padding:5px 8px;border:1px solid var(--border-strong);
   border-radius:var(--r-sm);background:var(--surface);font-size:12.5px;color:var(--text);
-  cursor:pointer;
+  cursor:pointer;text-overflow:ellipsis;
 }
 .font-select:hover{border-color:#b9c2d0;}
+.tb-row .tool-size{flex:0 0 auto;}
 /* 字号：数字输入框 + 单位 */
 .font-size-input{
-  width:56px;padding:5px 6px;border:1px solid var(--border-strong);border-radius:var(--r-sm);
+  width:52px;padding:5px 6px;border:1px solid var(--border-strong);border-radius:var(--r-sm);
   background:var(--surface);font-size:12.5px;text-align:center;font-variant-numeric:tabular-nums;
 }
 .font-size-input:hover{border-color:#b9c2d0;}

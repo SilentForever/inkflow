@@ -19,7 +19,10 @@
     longcang:     { label: "龙藏 行草",        css: '"LongCang", "KaiTi", cursive',          cjk: true, lang: "cjk", family: "LongCang" },
     zhimangxing:  { label: "志莽行书",         css: '"ZhiMangXing", "KaiTi", cursive',       cjk: true, lang: "cjk", family: "ZhiMangXing" },
     liujianmaocao:{ label: "刘建毛草 狂草",    css: '"LiuJianMaoCao", "KaiTi", cursive',     cjk: true, lang: "cjk", family: "LiuJianMaoCao" },
-    kai:          { label: "系统楷体",         css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk", family: "KaiTi" },
+    kai:          { label: "系统楷体",         css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk", family: "KaiTi", sys: true },
+    /* ---------- 中文：系统自带（无需下载，随系统即时可用） ---------- */
+    stxingkai:    { label: "华文行楷（系统）",  css: '"华文行楷", "STXingkai", "KaiTi", cursive', cjk: true, lang: "cjk", family: "华文行楷", sys: true },
+    sysink:       { label: "Ink Free 手写（系统）", css: '"Ink Free", "Segoe Print", "KaiTi", cursive', cjk: true, lang: "cjk", family: "Ink Free", sys: true },
     /* ---------- 英文手写 ---------- */
     caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat", family: "Caveat" },
     patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat", family: "Patrick Hand" },
@@ -29,7 +32,12 @@
     architects:   { label: "Architects 手绘", css: '"Architects Daughter", cursive',    cjk: false, lang: "lat", family: "Architects Daughter" },
     gloria:       { label: "Gloria 活泼",     css: '"Gloria Hallelujah", cursive',      cjk: false, lang: "lat", family: "Gloria Hallelujah" },
     reenie:       { label: "Reenie 细瘦",     css: '"Reenie Beanie", cursive',          cjk: false, lang: "lat", family: "Reenie Beanie" },
-    rocksalt:     { label: "Rock Salt 粗犷",  css: '"Rock Salt", cursive',              cjk: false, lang: "lat", family: "Rock Salt" }
+    rocksalt:     { label: "Rock Salt 粗犷",  css: '"Rock Salt", cursive',              cjk: false, lang: "lat", family: "Rock Salt" },
+    /* ---------- 英文：系统自带（无需下载，随系统即时可用） ---------- */
+    segoescript:  { label: "Segoe Script 手写（系统）", css: '"Segoe Script", cursive', cjk: false, lang: "lat", family: "Segoe Script", sys: true },
+    segoeprint:   { label: "Segoe Print 打印（系统）",  css: '"Segoe Print", cursive',  cjk: false, lang: "lat", family: "Segoe Print", sys: true },
+    comic:        { label: "Comic 漫画（系统）",        css: '"Comic Sans MS", cursive', cjk: false, lang: "lat", family: "Comic Sans MS", sys: true },
+    gabriola:     { label: "Gabriola 花体（系统）",     css: '"Gabriola", cursive',     cjk: false, lang: "lat", family: "Gabriola", sys: true }
   };
 
   /* 允许在运行时挂载用户自带的字体 */

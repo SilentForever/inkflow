@@ -21,9 +21,14 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 ## 字体
 - **20 款内置（11 中文 + 9 英文）**，`fonts/` 为 WOFF2，共约 20.8MB。中文默认 `Zen Kurenaido`，拉丁默认 `Caveat`；中英双下拉分别选。
 - 字体文件清单：`js/app.js` 的 `FONT_FILES`（20 条，`url` 均为 `*.woff2`）；字体定义：`js/renderer.js` 的 `FONTS`。
+- **8 款系统手写字体**（`FONTS` 里标 `sys:true`，`family` 为本机字族名，不打包）：中文 `华文行楷(STXingkai)`、`Ink Free`；英文 `Segoe Script`、`Segoe Print`、`Comic Sans MS`、`Gabriola`（另原有 `系统楷体 KaiTi`）。**下拉总数：中文 13、英文 13**（`fontsByLang` 自动带出）。
+- **字体按需加载**：`loadFontFamily(family)` 按 family 找到 `FONT_FILES` 条目并 `loadFontEntry`；系统字体返回 null（无需加载）。字体下拉 `pickFont()` 选到**尚未加载**的字体时先 `await loadFontFamily` 再 `scheduleRender(true)`。`registerFonts()`/`loadBootFonts()` 用 `_hasFamily(fam)`（前缀匹配）判重。
 
 ## 左栏（一体化导入面板 + WPS 式工具栏）
-顶部工具栏（对应 WPS「开始」选项卡）一行放：**中英字体下拉 · 字号数字框 · B/I/U · 字色 · 缩放**，右端是 `[单篇|批量]` 模式切换。
+顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
+- 第 1 行 `.tb-row`：中文字体下拉 + 英文字体下拉（`.font-select` 用 `flex:1 1 108px` 等宽并排）+ 字号数字框 + `px`。
+- 第 2 行 `.tb-row`：B/I/U（`.fmt-btn`，带边框/圆角/`aria-pressed` 选中态）· `.tool-sep` · 字色 · `.tool-sep` · 缩放滑块 · 右端 `.queue-seg{margin-left:auto}` 的 `[单篇|批量]`。
+- 外层 `.input-toolbar{flex-direction:column;overflow:hidden}`，每行 `.tb-row{flex-wrap:wrap}`。**切勿再把这些控件塞进单个不可换行的 flex 组**（历史坑：总宽 ≈600px > 左栏 ≈477px → 横向溢出到中栏）。
 工具栏下方是 `[导入|编辑]` 页签：**默认停在「导入」页**，该页整块是**一体化导入面板** `#dropCard`（点卡片任意位置弹文件选择（多选）；`#dropzone` 整列可拖入；卡片下方「粘贴文本 / 识别图片」两个文字入口）。导入完成自动切到「编辑」页；「编辑」页是 Markdown/LaTeX 文本框，批量队列也挂在「编辑」页下。
 - 面板可见性统一由 `js/app.js` 的 `syncPanels()` 单点控制 `hidden`（导入页 / 编辑器 `#editorWrap` / 队列 `#queuePanel`），避免作者样式的 `display` 覆盖 `[hidden]`。
 - **字号是 `<input type="number">` 数字框**（12–96），由 `bindFontSize()` 绑定，**不是滑杆**。
