@@ -6,7 +6,7 @@
 - 本机 `file://` 下 `@font-face`/classic `<script>`/Canvas/Blob URL 可用；**ES Module、fetch/XHR、Worker 被禁**。
 
 ## CSS
-- `hidden` 属性会被作者样式 `display:flex` 覆盖 → 全局 `[hidden]{display:none !important;}`。
+- `hidden` 属性会被作者样式 `display:flex` 覆盖 → 全局 `[hidden]{display:none !important;}`。**新加的可切换容器（如 `.dropzone-card`）若自带 `display:flex/grid`，必须补一条 `X[hidden]{display:none!important}`**，否则 `el.hidden=true` 无效。
 - 网格行必须确定高度：`.main{grid-template-rows:minmax(0,1fr)}`，否则 flex:1 子项塌成 0。
 - 窄屏（≤820px）单栏堆叠时左栏会塌成 0 高度 → 给 `.col` 确定高度 `min(82vh,760px)`。
 - **左栏工具栏溢出**：若把「字体×2+字号+B/I/U+字色+缩放+模式」塞进**一个不可换行的 flex 组**，子项总宽 ≈600px > 左栏 ≈477px → 整组横向溢出到中栏、字号框被压、字色/缩放换行。正解：外层 `flex-direction:column` 拆两行 `.tb-row`，每行各自 `flex-wrap:wrap`。自查：`toolbar.scrollWidth > toolbar.clientWidth`。

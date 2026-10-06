@@ -329,12 +329,19 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 .tool-group{display:flex;align-items:center;gap:4px;min-width:0;flex:0 0 auto;}
 .tool-group[hidden]{display:none !important;}
 .tool-sep{width:1px;height:18px;background:var(--border-strong);margin:0 2px;flex:none;}
-/* 批量队列内联在导入页：导入 ≥2 篇时自动出现 */
-.import-view .queue-panel{margin-top:14px;}
-.queue-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+/* 文档列表：标题行（标题 + 计数 + 继续添加） */
+.import-view .queue-panel{margin-top:0;}
+.queue-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .queue-head-title{font-size:12.5px;font-weight:650;color:var(--text);}
 .queue-head-hint{font-size:11px;color:var(--text-3);}
 .queue-head-hint b{color:var(--accent);font-weight:700;}
+.queue-add{margin-left:auto;flex:0 0 auto;}
+.drop-hint{
+  font-size:11.5px;color:var(--text-3);text-align:center;padding:7px 10px;
+  border:1px dashed var(--border-strong);border-radius:var(--r-md);background:var(--surface-2);
+  transition:color var(--dur),border-color var(--dur),background var(--dur);
+}
+#dropzone.over .drop-hint{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);}
 .tool-size{display:inline-flex;align-items:center;gap:4px;color:var(--text-2);font-size:12px;cursor:pointer;}
 .tool-size-ico{font-weight:700;font-size:13px;}
 /* 字体下拉（WPS 式工具栏内联）：每项带「中文 / 英文」标签，随行宽自适应 */
@@ -367,6 +374,7 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
   transition:border-color var(--dur),background var(--dur),box-shadow var(--dur),transform var(--dur);
 }
 .dropzone-card:hover{border-color:var(--accent);background:var(--accent-soft);}
+.dropzone-card[hidden]{display:none !important;}
 .dropzone-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .dropzone-ico{
   width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
@@ -381,11 +389,22 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 .link-btn{appearance:none;border:0;background:none;color:var(--accent);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:2px 2px;border-radius:4px;}
 .link-btn:hover{text-decoration:underline;}
 .dot-sep{color:var(--border-strong);}
-/* 整块左栏拖拽高亮 */
+/* 拖拽光效反馈：整块左栏脉冲发光 + 卡片/列表描边高亮 */
 #dropzone.over{border-radius:var(--r-lg);}
+#dropzone.dragging{animation:drop-glow 1.4s ease-in-out infinite;}
+@keyframes drop-glow{
+  0%,100%{box-shadow:inset 0 0 0 2px rgba(59,91,219,.26), inset 0 0 22px rgba(59,91,219,.10);}
+  50%{box-shadow:inset 0 0 0 2px rgba(59,91,219,.55), inset 0 0 42px rgba(59,91,219,.22);}
+}
 #dropzone.over .dropzone-card{
   outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--r-lg);
   border-color:var(--accent);background:var(--accent-soft);
+  box-shadow:0 0 0 4px rgba(59,91,219,.12), 0 0 30px rgba(59,91,219,.35);
+  transform:scale(1.012);
+}
+#dropzone.over .queue-panel{
+  border-radius:var(--r-lg);
+  box-shadow:0 0 0 2px rgba(59,91,219,.35), 0 0 26px rgba(59,91,219,.25);
 }
 /* 编辑视图 / 队列：互斥 */
 .edit-view{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:10px 10px 0;}
@@ -418,7 +437,3 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 .q-status.error{color:var(--danger);}
 .q-del{appearance:none;border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:15px;padding:0 3px;line-height:1;}
 .q-del:hover{color:var(--danger);}
-.queue-empty{font-size:12.5px;color:var(--text-3);padding:12px;text-align:center;line-height:1.6;}
-.queue-empty[hidden]{display:none;}
-.queue-list:empty + .queue-empty{display:block;}
-#dropzone.over{outline:2px dashed var(--accent);outline-offset:-6px;border-radius:var(--r-lg);}

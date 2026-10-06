@@ -72,8 +72,10 @@
 
       <div class="import-status" id="importStatus" hidden></div>
 
-      <!-- 导入页：一整块可点击 / 可拖拽的面板（唯一输入方式；编辑器已移除） -->
+      <!-- 导入页：空态 = 拖放卡片；有文档 = 文档列表（可依次切换 + 继续添加） -->
       <div class="import-view" id="importView">
+
+        <!-- 空态：尚无文档 -->
         <div class="dropzone-card" id="dropCard" role="button" tabindex="0"
              aria-label="点击选择文件，或把文件拖到这里">
           <div class="dropzone-ico" aria-hidden="true">＋</div>
@@ -86,28 +88,33 @@
             <button class="link-btn" id="importImage" type="button">识别图片</button>
           </div>
         </div>
+
+        <!-- 列表态：已有文档（含批量队列） -->
+        <div class="queue-panel" id="queuePanel" hidden>
+          <div class="queue-head">
+            <span class="queue-head-title">文档列表</span>
+            <span class="queue-head-hint">已导入 <b id="queueCount">0</b> 篇 · 点某篇即可切换预览</span>
+            <button class="btn sm primary queue-add" id="queueAdd" type="button" title="继续添加文件">＋ 添加</button>
+          </div>
+          <div class="queue-bar">
+            <button class="btn sm primary" id="queueRun" type="button">全部转写</button>
+            <button class="btn sm" id="queueStop" type="button" disabled>停止</button>
+            <span class="import-sep" aria-hidden="true"></span>
+            <label class="auto-toggle"><input type="checkbox" id="queueAll"> 全选</label>
+            <button class="btn sm" id="queueExport" type="button">导出选中</button>
+            <button class="btn sm ghost" id="queueClear" type="button">清空</button>
+          </div>
+          <div class="queue-progress" id="queueProgress" hidden>
+            <div class="qbar"><span id="queueBarFill"></span></div>
+            <div class="qhint" id="queueHint">—</div>
+          </div>
+          <ul class="queue-list" id="queueList" aria-label="待转写文档"></ul>
+          <div class="drop-hint" id="dropHint">拖拽文件到此处可继续添加</div>
+        </div>
       </div>
 
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
-
-      <!-- 批量队列 -->
-      <div class="queue-panel" id="queuePanel" hidden>
-        <div class="queue-bar">
-          <button class="btn sm primary" id="queueRun" type="button">全部转写</button>
-          <button class="btn sm" id="queueStop" type="button" disabled>停止</button>
-          <span class="import-sep" aria-hidden="true"></span>
-          <label class="auto-toggle"><input type="checkbox" id="queueAll"> 全选</label>
-          <button class="btn sm" id="queueExport" type="button">导出选中</button>
-          <button class="btn sm ghost" id="queueClear" type="button">清空</button>
-        </div>
-        <div class="queue-progress" id="queueProgress" hidden>
-          <div class="qbar"><span id="queueBarFill"></span></div>
-          <div class="qhint" id="queueHint">—</div>
-        </div>
-        <ul class="queue-list" id="queueList" aria-label="待转写文档"></ul>
-        <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
-      </div>
 
       <!-- 文档信息（原编辑器位置；编辑器已移除，仅保留只读统计） -->
       <div class="doc-info">

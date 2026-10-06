@@ -434,6 +434,7 @@
     if (clr) clr.addEventListener("click", function () {
       if (global.InkQueue) global.InkQueue.clearAll();
       loadDocText("");
+      setView();
       toast("已清空", "ok", 1400);
     });
 
@@ -441,6 +442,7 @@
     if (demo) demo.addEventListener("click", function () {
       if (global.InkQueue) global.InkQueue.clearAll();
       loadDocText(global.InkSamples.equation);
+      setView();
     });
 
     /* ---------- 自定义字体：仅本地读取 ---------- */
@@ -479,15 +481,20 @@
     if (hclose) hclose.addEventListener("click", function () { var d = $("helpDlg"); if (d) d.close(); });
 
     /* ---------- 导入：文件 / 图片 / 粘贴识别 ---------- */
-    /* 无「编辑」页：单选导入 → 直接渲染到右侧预览；多选导入 → 就地组成批量队列 */
-    var batchBuf = [], batchNames = [], batchTimer = null;
+    /* 无「编辑」页：每次导入都进入左栏文档列表；点列表项切换右侧预览 */
+    var batchBuf = [], batchNames = [], batchKinds = [], batchTimer = null;
     function flushBatch() {
       batchTimer = null;
       if (!batchBuf.length) return;
-      var texts = batchBuf, names = batchNames;
-      batchBuf = []; batchNames = [];
-      for (var i = 0; i < texts.length; i++) global.InkQueue.add(names[i], "text", texts[i]);
+      var texts = batchBuf, names = batchNames, kinds = batchKinds;
+      batchBuf = []; batchNames = []; batchKinds = [];
+      var first = null;
+      for (var i = 0; i < texts.length; i++) {
+        var it = global.InkQueue.add(names[i], kinds[i] || "text", texts[i]);
+        if (i === 0) first = it;
+      }
       setView("import");
+      if (first) { global.InkQueue.select(first.id); loadDocText(first.text); }
       renderQueueList();
     }
     function afterImport(info) {
@@ -499,12 +506,14 @@
     if (global.InkImport) global.InkImport.bind({
       toast: toast,
       onItem: function (name, kind, text, opts) {
-        if (opts && opts.multi) { batchBuf.push(text); batchNames.push(name); }
+        if (opts && opts.multi) { batchBuf.push(text); batchNames.push(name); batchKinds.push(kind || "text"); }
         else {
-          /* 单篇：清掉上一批队列，直接把这篇渲染到右侧预览 */
-          if (global.InkQueue) global.InkQueue.clearAll();
+          /* 单篇：也进入文档列表并选中，右侧立即渲染该篇 */
+          var it = global.InkQueue.add(name, kind || "text", text);
           setView("import");
+          global.InkQueue.select(it.id);
           loadDocText(text);
+          renderQueueList();
         }
       },
       onDone: afterImport
@@ -532,16 +541,18 @@
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPicker(); }
       });
     }
-    /* 整块左栏都可拖入 */
+    /* 整块左栏都可拖入；拖动时高亮 + 光效反馈 */
     var drop = $("dropzone");
     if (drop) {
-      ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
-      drop.addEventListener("dragleave", function (e) { if (!drop.contains(e.relatedTarget)) drop.classList.remove("over"); });
+      ["dragenter", "dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over", "dragging"); }); });
+      drop.addEventListener("dragleave", function (e) { if (!drop.contains(e.relatedTarget)) drop.classList.remove("over", "dragging"); });
       drop.addEventListener("drop", function (e) {
-        e.preventDefault(); drop.classList.remove("over");
+        e.preventDefault(); drop.classList.remove("over", "dragging");
         var files = e.dataTransfer && e.dataTransfer.files;
         runImport(files);
       });
+      window.addEventListener("dragend", function () { drop.classList.remove("over", "dragging"); });
+      window.addEventListener("blur", function () { drop.classList.remove("over", "dragging"); });
     }
 
     /* ---------- 文字样式（字色 / 缩放）；B/I/U 已随编辑器移除 ---------- */
@@ -549,33 +560,15 @@
     if (tcol) { tcol.value = state.textColor; tcol.addEventListener("input", function () { state.textColor = tcol.value; scheduleRender(); }); }
     bindRange("textScale", "textScale", function (v) { return v.toFixed(2) + "×"; });
 
-    /* ---------- 左栏面板：只有「导入」页（含内联批量队列）；编辑器已移除 ---------- */
+    /* ---------- 左栏面板：空态（拖放卡片）↔ 列表态（文档列表）；编辑器已移除 ---------- */
     function syncPanels() {
-      var iv = $("importView"), qp = $("queuePanel");
+      var iv = $("importView"), qp = $("queuePanel"), card = $("dropCard");
       if (iv) iv.hidden = false;
-      /* 批量队列内联在导入页：导入 ≥2 篇后自动出现 */
-      if (qp) {
-        var hasQ = !!(global.InkQueue && global.InkQueue.items().length);
-        var head = iv ? iv.querySelector(".queue-head") : null;
-        if (hasQ) {
-          if (qp.parentNode !== iv) {
-            if (!head) {
-              head = document.createElement("div");
-              head.className = "queue-head";
-              head.innerHTML = '<span class="queue-head-title">批量队列</span>' +
-                '<span class="queue-head-hint">已导入 <b id="queueCount">0</b> 篇 · 点「全部转写」生成，或点某篇单独预览</span>';
-              iv.appendChild(head);
-            }
-            iv.appendChild(qp);
-          }
-          if (head) head.hidden = false;
-          qp.hidden = false;
-          var qc = $("queueCount"); if (qc) qc.textContent = String(global.InkQueue.items().length);
-        } else {
-          qp.hidden = true;
-          if (head) head.hidden = true;
-        }
-      }
+      /* 有文档 → 显示列表、隐藏拖放卡片；无文档 → 反之 */
+      var hasDocs = !!(global.InkQueue && global.InkQueue.items().length);
+      if (qp) qp.hidden = !hasDocs;
+      if (card) card.hidden = hasDocs;
+      var qc = $("queueCount"); if (qc) qc.textContent = String(global.InkQueue ? global.InkQueue.items().length : 0);
     }
     function setView() { syncPanels(); }
 
@@ -583,6 +576,8 @@
     function showQueueItem(id) {
       var it = global.InkQueue.select(id);
       if (!it) return;
+      state.docText = it.text || "";
+      updateCounts();
       if (it.status === "done" && it.pages) { pages = it.pages; currentPage = 0; paintPage(0); }
       else { pages = []; paintPage(0); }
       renderQueueList();
@@ -590,8 +585,6 @@
     function renderQueueList() {
       var ul = $("queueList"); if (!ul) return;
       var list = global.InkQueue.items();
-      var empty = $("queueEmpty");
-      if (empty) empty.hidden = list.length > 0;
       ul.innerHTML = "";
       var cur = global.InkQueue.current();
       list.forEach(function (it) {
@@ -651,6 +644,7 @@
       renderQueueList();
     });
     if ($("queueClear")) $("queueClear").addEventListener("click", function () { global.InkQueue.clearAll(); renderQueueList(); });
+    if ($("queueAdd")) $("queueAdd").addEventListener("click", function () { openPicker(); });
     if ($("queueExport")) $("queueExport").addEventListener("click", async function () {
       var sel = global.InkQueue.checked();
       if (!sel.length) return toast("没有可导出的已完成文档", "warn");
@@ -663,10 +657,14 @@
       finally { setBusy(false); }
     });
 
-    /* 队列状态变化时重绘列表 */
+    /* 队列状态变化时重绘列表；当前项转写完成后自动刷新右侧预览 */
     if (global.InkQueue) global.InkQueue.bind({ toast: toast, onChange: function () {
       syncPanels();
       renderQueueList();
+      var cur = global.InkQueue.current();
+      if (cur && cur.status === "done" && cur.pages && cur.pages !== pages) {
+        pages = cur.pages; currentPage = 0; paintPage(0);
+      }
     }});
 
     setView();

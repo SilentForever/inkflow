@@ -88,7 +88,7 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
 
       <div class="import-status" id="importStatus" hidden></div>
 
-      <!-- 导入页：一整块可点击 / 可拖拽的面板（唯一输入方式；编辑器已移除） -->
+      <!-- 导入页：空态 = 拖放卡片；有文档 = 文档列表（可依次切换 + 继续添加） -->
       <div class="import-view" id="importView">
         <div class="dropzone-card" id="dropCard" role="button" tabindex="0"
              aria-label="点击选择文件，或把文件拖到这里">
@@ -103,8 +103,13 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
           </div>
         </div>
 
-        <!-- 批量队列：内联在导入页，导入 ≥2 篇后自动出现（无手动切换） -->
+        <!-- 列表态：已有文档（含批量队列） -->
         <div class="queue-panel" id="queuePanel" hidden>
+          <div class="queue-head">
+            <span class="queue-head-title">文档列表</span>
+            <span class="queue-head-hint">已导入 <b id="queueCount">0</b> 篇 · 点某篇即可切换预览</span>
+            <button class="btn sm primary queue-add" id="queueAdd" type="button" title="继续添加文件">＋ 添加</button>
+          </div>
           <div class="queue-bar">
             <button class="btn sm primary" id="queueRun" type="button">全部转写</button>
             <button class="btn sm" id="queueStop" type="button" disabled>停止</button>
@@ -118,7 +123,7 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
             <div class="qhint" id="queueHint">—</div>
           </div>
           <ul class="queue-list" id="queueList" aria-label="待转写文档"></ul>
-          <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
+          <div class="drop-hint" id="dropHint">拖拽文件到此处可继续添加</div>
         </div>
       </div>
 
@@ -428,21 +433,32 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "中文不变、英文换字体 → 输出不同";
     });
 
-    await t("面板：唯一「导入」页；编辑器已移除；多选自动成批量", async function(){
+    await t("面板：空态拖放卡片 ↔ 有文档列表（可切换 + 继续添加）", async function(){
       function vis(id){ var el = $(id); return el && el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
-      window.InkQueue.clearAll();
+      window.InkQueue.clearAll(); await sleep(150);
       if (!vis("importView")) throw new Error("应常驻导入页");
       if ($("editorWrap") || $("tabEdit") || $("tabImport") || $("inputTabs")) throw new Error("编辑器 / 输入页签应已移除");
       if ($("modeSingle") || $("modeQueue") || $("queueTools")) throw new Error("单篇/批量切换按钮应已移除");
-      if (vis("queuePanel")) throw new Error("队列为空时不该占位");
-      /* 一次导入 2 篇（多选）→ 就地展开批量队列 */
+      /* 空队列：只显示拖放卡片，不显示列表 */
+      if (!vis("dropCard")) throw new Error("空队列应显示拖放卡片");
+      if (vis("queuePanel")) throw new Error("空队列不该显示列表");
+      /* 一次导入 2 篇（多选）→ 卡片换成文档列表 */
       await window.InkImport.handleFiles([new File(["$a^2$"], "a.md"), new File(["$b^2$"], "b.md")]);
       await sleep(400);
       if (!vis("importView")) throw new Error("批量导入后应在导入页");
-      if (!vis("queuePanel")) throw new Error("导入 ≥2 篇后队列应自动展开");
-      if (document.querySelectorAll("#queueList li").length !== 2) throw new Error("队列应有 2 篇");
-      window.InkQueue.clearAll(); await sleep(200);
-      return "导入页唯一、编辑器移除、多选自动批量";
+      if (vis("dropCard")) throw new Error("有文档后拖放卡片应让位给列表");
+      if (!vis("queuePanel")) throw new Error("导入 ≥2 篇后应显示文档列表");
+      if (document.querySelectorAll("#queueList li").length !== 2) throw new Error("列表应有 2 篇");
+      if (!$("queueAdd")) throw new Error("列表应有「＋ 添加」按钮");
+      if (!$("dropHint")) throw new Error("列表应有拖拽继续添加提示");
+      /* 点第 1 篇 → 可切换预览（active 高亮） */
+      document.querySelector("#queueList li").click(); await sleep(150);
+      if (document.querySelectorAll("#queueList li.active").length !== 1) throw new Error("点某篇应高亮为当前预览");
+      /* 清空 → 回到空态卡片 */
+      window.InkQueue.clearAll(); await sleep(250);
+      if (!vis("dropCard")) throw new Error("清空后应回到拖放卡片");
+      if (vis("queuePanel")) throw new Error("清空后不该再显示列表");
+      return "空态卡片 ↔ 文档列表（切换 + 添加）";
     });
 
     await t("视图：左栏工具栏含字体 / 字号 / 字色，无「编辑」页签", async function(){
@@ -458,12 +474,15 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "工具栏完整，字体下拉带「中文 / 英文」标签";
     });
 
-    await t("导入：单篇直接出稿、多篇就地成批量（无模式开关）", async function(){
+    await t("导入：单篇进列表并出稿；多篇追加（可依次切换）", async function(){
       if ($("modeSingle") || $("modeQueue") || $("queueTools")) throw new Error("单篇/批量切换按钮应已移除");
-      window.InkQueue.clearAll();
-      /* 单篇 → 直接渲染出稿，不进队列 */
+      window.InkQueue.clearAll(); await sleep(150);
+      /* 单篇 → 进入左栏列表 + 右侧直接出稿 */
       await window.InkImport.handleFiles([new File(["# 大标题\n\n正文内容 abc 123，公式 $x=1$。"], "one.md")]);
-      if ((window.InkApp.state.docText || "").indexOf("大标题") < 0) throw new Error("单篇内容未载入渲染");
+      await sleep(400);
+      if (window.InkQueue.items().length !== 1) throw new Error("单篇应进入列表");
+      if (document.querySelectorAll("#queueList li").length !== 1) throw new Error("列表应有 1 篇");
+      if (!$("dropCard").hidden) throw new Error("有文档后拖放卡片应让位");
       /* 渲染是异步的（MathJax + 字体就绪），轮询等待出稿 */
       var cv = null, ink = 0;
       for (var w = 0; w < 12; w++) {
@@ -472,15 +491,16 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
         ink = cv ? inkOf(cv) : 0;
         if (ink >= 10) break;
       }
-      if (window.InkQueue.items().length !== 0) throw new Error("单篇不该进队列");
       if (!cv || ink < 10) throw new Error("单篇未出稿 (ink=" + ink + ")");
-      /* 多篇 → 队列自动出现 */
+      /* 多篇 → 追加进同一列表（可依次切换） */
       await window.InkImport.handleFiles([new File(["$a$"], "a.md"), new File(["$b$"], "b.md")]);
       await sleep(500);
-      if ($("queuePanel").hidden) throw new Error("多篇导入后队列应展开");
-      if (document.querySelectorAll("#queueList li").length !== 2) throw new Error("队列应有 2 篇");
+      if (window.InkQueue.items().length !== 3) throw new Error("多篇应追加进列表，实际 " + window.InkQueue.items().length);
+      if (document.querySelectorAll("#queueList li").length !== 3) throw new Error("列表应有 3 篇");
+      document.querySelectorAll("#queueList li")[2].click(); await sleep(200);
+      if (document.querySelectorAll("#queueList li.active").length !== 1) throw new Error("点某篇应高亮为当前预览");
       window.InkQueue.clearAll(); await sleep(150);
-      return "单篇→直接出稿 / 多篇→就地批量";
+      return "单篇进列表出稿 / 多篇追加 / 可切换";
     });
 
     await t("队列：多文档排队转写 + 缓存 + 批量导出可选", async function(){

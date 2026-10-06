@@ -25,14 +25,16 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 - **字体按需加载**：`loadFontFamily(family)` 按 family 找到 `FONT_FILES` 条目并 `loadFontEntry`；系统字体返回 null（无需加载）。字体下拉 `pickFont()` 选到**尚未加载**的字体时先 `await loadFontFamily` 再 `scheduleRender(true)`。`registerFonts()`/`loadBootFonts()` 用 `_hasFamily(fam)`（前缀匹配）判重。
 - 本机实测下拉：中文 11（内置 11，华文行楷未装被隐藏）、英文 14（内置 9 + 系统 5）。
 
-## 左栏（一体化导入面板 + WPS 式工具栏）
+## 左栏（导入面板：空态卡片 ↔ 文档列表 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
 - 第 1 行 `.tb-row`：**中文**字体下拉 + **英文**字体下拉（每个 `.font-select` 包在 `.font-field` 里、前面有可见的 `.font-lbl`「中文 / 英文」小标签——**两个下拉必须带可见标签**，不能只靠位置/`aria-label` 区分）+ 字号数字框 + `px`。
 - 第 2 行 `.tb-row`：字色 · `.tool-sep` · 缩放滑块 · `.tool-sep` · 「**按原文大小**」开关 `#sizeFromSource`（`.sfs-toggle`，默认开）。**B/I/U 按钮已随编辑器一并移除**（它们只作用于编辑器，导入内容不带加粗/斜体/下划线）。
 - 外层 `.input-toolbar{flex-direction:column;overflow:hidden}`，每行 `.tb-row{flex-wrap:wrap}`。**切勿再把这些控件塞进单个不可换行的 flex 组**（历史坑：总宽 ≈600px > 左栏 ≈477px → 横向溢出到中栏）。
-**左栏只有「导入」一种输入方式**（「编辑」页签与单篇编辑器已移除）：整块是**一体化导入面板** `#dropCard`（点卡片任意位置弹文件选择（多选）；`#dropzone` 整列可拖入；卡片下方「粘贴文本 / 识别图片」两个文字入口）。编辑器位置换成只读状态栏 `.doc-info`（`#counts`）。
-- **单篇 / 批量由文件数自动分流，无手动开关**：`InkImport.handleFiles` 里 `multi = files.length>1`。单篇（1 个文件）→ `onItem` 直接 `loadDocText()` 渲染到右侧；多篇（≥2）→ 逐篇入队，**批量队列 `#queuePanel` 就地展开在导入页**（卡片下方，自动生成「批量队列 · 已导入 N 篇」小标题）。
-- 面板可见性统一由 `js/app.js` 的 `syncPanels()` 单点控制 `hidden`（导入页 + 内联队列 `#queuePanel`），避免作者样式的 `display` 覆盖 `[hidden]`。队列的**挂载位置**（`parentNode`）与显隐也由 `syncPanels()` 决定：空队列不占位。
+**左栏只有「导入」一种输入方式**（「编辑」页签与单篇编辑器已移除），面板**随有无文档自动切换两种形态**：
+- **空态**：只显示 `#dropCard`（虚线拖放卡片；点它任意位置弹文件选择（多选）；卡片下方「粘贴文本 / 识别图片」两个文字入口）；列表 `#queuePanel` 隐藏。
+- **列表态**：`#dropCard` 收起（`.dropzone-card[hidden]{display:none!important}` 抵消其 `display:flex`），换成 `#queuePanel` 文档列表——`.queue-head`（标题 + `#queueCount` + 右侧 `.queue-add`「＋ 添加」按钮）+ `.queue-bar`（全部转写/停止/全选/导出选中/清空）+ `#queueList`（每行可勾选/移除，点某行 = `showQueueItem` 切换右侧预览）+ `.drop-hint`「拖拽文件到此处可继续添加」。
+- **面板可见性由 `js/app.js` 的 `syncPanels()` 单点控制** `hidden`（`hasDocs = InkQueue.items().length>0` → 显示列表、隐藏卡片；否则反之）；`InkQueue.onChange` → `syncPanels()+renderQueueList()`。**切勿让作者样式的 `display` 覆盖 `[hidden]`**。
+- **拖拽光效反馈**：`#dropzone` 拖入时加 `.over.dragging` → `#dropzone.dragging` 脉冲发光 `@keyframes drop-glow`（inset 描边+柔光），卡片/列表/`.drop-hint` 同步高亮；`drop`/`dragleave`/window `dragend`/`blur` 都要清类，避免残留。
 - **字号是 `<input type="number">` 数字框**（12–96），由 `bindFontSize()` 绑定，**不是滑杆**。
 - 旧的「只读预览」视图与三个并排导入按钮均已删除。
 - 测试文件 `tests/e2e.html` 内嵌了一份**左栏 + 右栏 DOM 副本**：改 DOM 结构时必须同步改它，否则 e2e 与真实页面不一致。
