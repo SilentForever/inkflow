@@ -1,11 +1,12 @@
 /* InkFlow · 导入器：TXT/MD · PDF · Word(.docx) · 图片(OCR)
  *
  * 全部在浏览器本地完成：
- *  - PDF  ：pdf.js（本地 vendor）
- *  - Word ：mammoth（本地 vendor）→ HTML → 文本/Markdown
+ *  - PDF  ：pdf.js（本地 vendor）；按每行原始字号打「字号标记」以还原标题/脚注层级
+ *  - Word ：自解 ZIP（DecompressionStream）读 w:sz 取字号 → 带标记 Markdown；失败回退 mammoth
  *  - 图片 ：tesseract.js（本地 vendor + 本地语言包）→ 文本
  *  - 文本 ：FileReader
  * 全程不发起任何网络请求（worker / wasm / 语言包均来自同源本地文件）。
+ * 字号标记形如 \u0001F167\u0001（=正文的 167%），由 js/parser.js 剥离并挂到块上。
  */
 (function (global) {
   "use strict";
@@ -30,6 +31,59 @@
     status.textContent = msg;
     status.className = "import-status " + (kind || "");
     if (!sticky) setTimeout(function () { if (status.textContent === msg) { status.hidden = true; } }, 4200);
+  }
+
+  /* ---------- 极简 ZIP 读取（用于 .docx，纯本地解压，不联网） ---------- */
+  async function inflateRaw(bytes) {
+    var ds = new DecompressionStream("deflate-raw");
+    var stream = new Blob([bytes]).stream().pipeThrough(ds);
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  async function unzipTexts(buf) {
+    var bytes = new Uint8Array(buf);
+    var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    var n = bytes.length, eocd = -1;
+    for (var i = n - 22; i >= Math.max(0, n - 65557); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("不是有效的 ZIP");
+    var cdCount = dv.getUint16(eocd + 10, true);
+    var cdOff = dv.getUint32(eocd + 16, true);
+    var out = {}, p = cdOff;
+    for (var e = 0; e < cdCount; e++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      var method = dv.getUint16(p + 10, true);
+      var compSize = dv.getUint32(p + 20, true);
+      var nameLen = dv.getUint16(p + 28, true);
+      var extraLen = dv.getUint16(p + 30, true);
+      var commLen = dv.getUint16(p + 32, true);
+      var localOff = dv.getUint32(p + 42, true);
+      var name = new TextDecoder("utf-8").decode(bytes.subarray(p + 46, p + 46 + nameLen));
+      var lnl = dv.getUint16(localOff + 26, true), lel = dv.getUint16(localOff + 28, true);
+      var dataStart = localOff + 30 + lnl + lel;
+      var comp = bytes.subarray(dataStart, dataStart + compSize);
+      var data = method === 0 ? comp : await inflateRaw(comp);
+      out[name] = new TextDecoder("utf-8").decode(data);
+      p += 46 + nameLen + extraLen + commLen;
+    }
+    return out;
+  }
+
+  /* 字号标记：把「相对文档正文字号的百分比」写进块首（parser 会剥离并挂到块上） */
+  function mark(pct) {
+    var v = Math.round(pct);
+    if (!isFinite(v) || v <= 0) v = 100;
+    return (global.InkParser && global.InkParser.szMark) ? global.InkParser.szMark(v) : "";
+  }
+  /* 一组字号 → 正文字号（众数，四舍五入到整数磅） */
+  function bodySizeOf(sizes) {
+    var m = {}, best = 12, bn = 0;
+    for (var i = 0; i < sizes.length; i++) {
+      var k = Math.round(sizes[i]);
+      if (k > 0) m[k] = (m[k] || 0) + 1;
+    }
+    for (var key in m) if (m[key] > bn) { bn = m[key]; best = parseInt(key, 10); }
+    return best || 12;
   }
 
   /* ---------- 文本 ---------- */
@@ -58,12 +112,13 @@
     if (!(await ensurePdf())) throw new Error("PDF 组件未就绪");
     var buf = await file.arrayBuffer();
     var doc = await global.pdfjsLib.getDocument({ data: buf, disableFontFace: false }).promise;
-    var out = [];
+    var pageLines = [];       /* [{text,h}] 每页 */
+    var allH = [];            /* 全文字号样本 */
     for (var p = 1; p <= doc.numPages; p++) {
       setStatus("正在解析 PDF：第 " + p + " / " + doc.numPages + " 页…", "busy", true);
       var page = await doc.getPage(p);
       var tc = await page.getTextContent();
-      /* 按 y 坐标聚合成行，尽量还原段落 */
+      /* 按 y 坐标聚合成行，尽量还原段落；同时记录该行字号 */
       var items = tc.items.map(function (it) {
         return { s: it.str, x: it.transform[4], y: it.transform[5], h: Math.abs(it.transform[3]) || 10 };
       }).filter(function (it) { return it.s && it.s.trim(); });
@@ -71,10 +126,10 @@
       var lines = [], cur = null;
       for (var i = 0; i < items.length; i++) {
         var it = items[i];
-        if (!cur || Math.abs(cur.y - it.y) > Math.max(2, it.h * 0.6)) { cur = { y: it.y, parts: [it] }; lines.push(cur); }
-        else cur.parts.push(it);
+        if (!cur || Math.abs(cur.y - it.y) > Math.max(2, it.h * 0.6)) { cur = { y: it.y, h: it.h, parts: [it] }; lines.push(cur); }
+        else { cur.parts.push(it); if (it.h > cur.h) cur.h = it.h; }
       }
-      var text = lines.map(function (ln) {
+      var built = lines.map(function (ln) {
         ln.parts.sort(function (a, b) { return a.x - b.x; });
         var s = "";
         for (var j = 0; j < ln.parts.length; j++) {
@@ -82,18 +137,93 @@
           if (s && !/\s$/.test(s) && !/^\s/.test(t)) s += " ";
           s += t;
         }
-        return s.replace(/\s+$/,"");
-      }).join("\n");
-      out.push(text);
+        return { text: s.replace(/\s+$/, ""), h: ln.h };
+      });
+      pageLines.push(built);
+      for (var b = 0; b < built.length; b++) if (built[b].text) allH.push(built[b].h);
+    }
+    /* 正文字号 = 出现最多的字号；每行按相对大小打标记，实现「按原文字号转写」 */
+    var body = bodySizeOf(allH);
+    var out = [];
+    for (var q = 0; q < pageLines.length; q++) {
+      out.push(pageLines[q].map(function (ln) {
+        if (!ln.text) return "";
+        return mark(ln.h / body * 100) + ln.text;
+      }).join("\n"));
     }
     return out.join("\n\n");
   }
 
   /* ---------- Word(.docx) ---------- */
+  function xmlUnescape(s) {
+    return String(s)
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&#x([0-9a-fA-F]+);/g, function (_, h) { return String.fromCharCode(parseInt(h, 16)); })
+      .replace(/&#(\d+);/g, function (_, d) { return String.fromCharCode(parseInt(d, 10)); })
+      .replace(/&amp;/g, "&");
+  }
+  /* 直接从 document.xml 抽取段落 + 字号（半磅）→ 带字号标记的 Markdown */
+  function docxToSizedText(docXml, map) {
+    var styleSize = {}, defHalf = null, stylesXml = null;
+    for (var k in map) if (/word\/styles\.xml$/i.test(k)) { stylesXml = map[k]; break; }
+    if (stylesXml) {
+      var dd = stylesXml.match(/<w:docDefaults[\s\S]*?<\/w:docDefaults>/i);
+      if (dd) { var m0 = dd[0].match(/<w:sz\b[^>]*w:val="(\d+)"/i); if (m0) defHalf = parseInt(m0[1], 10); }
+      var sre = /<w:style\b[^>]*w:styleId="([^"]+)"[\s\S]*?<\/w:style>/gi, sm;
+      while ((sm = sre.exec(stylesXml))) {
+        var sz = sm[0].match(/<w:sz\b[^>]*w:val="(\d+)"/i);
+        if (sz) styleSize[sm[1]] = parseInt(sz[1], 10);
+      }
+    }
+    var paras = [];
+    var pre = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/gi, pm;
+    while ((pm = pre.exec(docXml))) {
+      var inner = pm[1];
+      var pPrM = inner.match(/<w:pPr>([\s\S]*?)<\/w:pPr>/i);
+      var pPr = pPrM ? pPrM[1] : "";
+      var half = null;
+      var szm = pPr.match(/<w:sz\b[^>]*w:val="(\d+)"/i);
+      if (szm) half = parseInt(szm[1], 10);
+      if (half == null) {
+        var ps = pPr.match(/<w:pStyle\b[^>]*w:val="([^"]+)"/i);
+        if (ps && styleSize[ps[1]] != null) half = styleSize[ps[1]];
+      }
+      if (half == null) half = defHalf;
+      var txt = "";
+      var tre = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gi, tm;
+      while ((tm = tre.exec(inner))) txt += xmlUnescape(tm[1]);
+      paras.push({ text: txt, half: half, list: /<w:numPr\b/i.test(pPr) });
+    }
+    var sizes = [];
+    for (var i = 0; i < paras.length; i++) if (paras[i].text.trim()) sizes.push(paras[i].half ? paras[i].half / 2 : (defHalf ? defHalf / 2 : 12));
+    var body = bodySizeOf(sizes);
+    var parts = [];
+    for (var j = 0; j < paras.length; j++) {
+      var p = paras[j];
+      var t = p.text.replace(/\s+/g, " ").trim();
+      if (!t) continue;
+      var pt = p.half ? p.half / 2 : body;
+      parts.push(mark(body ? pt / body * 100 : 100) + (p.list ? "- " : "") + t);
+    }
+    return parts.join("\n\n");
+  }
   async function readDocx(file) {
+    var buf = await file.arrayBuffer();
+    var map = null;
+    try { map = await unzipTexts(buf); } catch (e) { map = null; }
+    if (map) {
+      var docXml = null;
+      for (var k in map) if (/word\/document\.xml$/i.test(k)) { docXml = map[k]; break; }
+      if (docXml) {
+        try {
+          var sized = docxToSizedText(docXml, map);
+          if (sized && sized.replace(/[\u0001]/g, "").trim()) return sized;
+        } catch (e) {}
+      }
+    }
+    /* 兜底：mammoth（无法取到字号 → 统一字号，结构仍保留） */
     if (!global.mammoth && global.InkLoader) await global.InkLoader.ensureDocx();
     if (!global.mammoth) throw new Error("Word 组件未就绪");
-    var buf = await file.arrayBuffer();
     var res = await global.mammoth.convertToHtml({ arrayBuffer: buf });
     var html = res.value || "";
     /* HTML → 纯文本（保留段落与列表结构） */
@@ -226,11 +356,11 @@
 
         text = String(text || "").trim();
         if (!text) { ctx.toast(name + "：未识别到内容", "warn", 3600); continue; }
-        if (multi || (ctx.queueMode && ctx.queueMode())) {
-          /* 多选 / 批量：逐个入队，转写交给队列 */
-          if (ctx.onItem) ctx.onItem(name, ext || "text", text);
-          added++;
-          setStatus("已加入队列：" + name, "ok");
+        if (ctx.onItem) {
+          /* 统一出口：多选 → 逐个入队（批量）；单选 → 直接渲染（单篇） */
+          ctx.onItem(name, ext || "text", text, { multi: multi });
+          if (multi) added++;
+          setStatus(multi ? ("已加入队列：" + name) : ("已导入 " + name), "ok");
         } else {
           acc.push(text);
           setStatus("已导入 " + name, "ok");
@@ -248,7 +378,7 @@
       ctx.toast("已导入 " + acc.length + " 个文件（仅本地处理）", "ok", 3000);
     }
     if (added) ctx.toast("已加入队列 " + added + " 个文件（仅本地处理）", "ok", 3000);
-    if (acc.length || added) ctx.onDone && ctx.onDone({ added: added, acc: acc.length });
+    ctx.onDone && ctx.onDone({ added: added, multi: multi });
     setStatus("");
   }
 

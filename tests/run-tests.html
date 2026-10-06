@@ -89,6 +89,19 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: JSON.stringify(code.text) };
   });
 
+  await t('解析器：块首字号标记剥离并挂载（按原文大小）', function () {
+    var mk = window.InkParser.szMark;
+    var src = mk(167) + '标题\n\n' + mk(100) + '正文\n\n' + mk(75) + '脚注';
+    var b = window.InkParser.parse(src);
+    var px = b.filter(function (x) { return x.type !== 'blank'; }).map(function (x) { return x.px; });
+    assert(px.length === 3 && px[0] === 167 && px[1] === 100 && px[2] === 75, 'px 标记错误: ' + JSON.stringify(px));
+    /* 标记必须被剥离，不能残留在文本里 */
+    var txt = b.map(function (x) { return x.text || ''; }).join('');
+    assert(txt.indexOf('\u0001') < 0, '文本残留标记');
+    assert(txt.indexOf('标题') >= 0 && txt.indexOf('脚注') >= 0, '文本内容丢失');
+    return { pass: true, detail: JSON.stringify(px) };
+  });
+
   /* ---------- 2. 公式渲染准确性 ---------- */
   var FORMULAS = [
     ['分数', '\\frac{a}{b}'],
@@ -169,6 +182,25 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     var res = await window.InkRender.render(blocks, baseSettings(), {});
     assert(res.canvases.length >= 2, 'should paginate, pages=' + res.canvases.length);
     return { pass: true, detail: 'pages=' + res.canvases.length + ' lines=' + res.stats.lineCount };
+  });
+
+  await t('渲染：按原文大小 → 产出多档字号（标题大 / 脚注小）', async function () {
+    var mk = window.InkParser.szMark;
+    var src = mk(180) + '大标题\n\n' + mk(100) + '正文\n\n' + mk(70) + '脚注';
+    var blocks = window.InkParser.parse(src);
+    var res = await window.InkRender.render(blocks, baseSettings({ fontSize: 30 }), {});
+    var sizes = {};
+    res.lines.forEach(function (l) { if (l.tokens && l.tokens.length) sizes[Math.round(l.size)] = 1; });
+    var keys = Object.keys(sizes).map(Number).sort(function (a, b) { return a - b; });
+    assert(keys.length >= 3, '应有 ≥3 档字号，实际 ' + JSON.stringify(keys));
+    assert(keys[0] <= 24 && keys[keys.length - 1] >= 48, '字号跨度不足: ' + JSON.stringify(keys));
+    /* 关闭标记 → 回到统一字号 */
+    blocks.forEach(function (b) { b.px = 0; });
+    var res2 = await window.InkRender.render(blocks, baseSettings({ fontSize: 30 }), {});
+    var sizes2 = {};
+    res2.lines.forEach(function (l) { if (l.tokens && l.tokens.length) sizes2[Math.round(l.size)] = 1; });
+    assert(Object.keys(sizes2).length === 1, '关闭后应统一字号，实际 ' + JSON.stringify(Object.keys(sizes2)));
+    return { pass: true, detail: '开=' + JSON.stringify(keys) + ' 关=' + JSON.stringify(Object.keys(sizes2)) };
   });
 
   /* ---------- 4. 确定性 / 种子 ---------- */

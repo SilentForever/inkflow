@@ -47,12 +47,6 @@
           </label>
         </div>
         <div class="tb-row">
-          <div class="tool-group">
-            <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
-            <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
-            <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
-          </div>
-          <span class="tool-sep" aria-hidden="true"></span>
           <label class="fmt-color" title="字色">
             <input type="color" id="textColor" value="#1b2a5e">
             <span>字色</span>
@@ -63,18 +57,16 @@
             <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
             <output id="textScaleOut">1.00×</output>
           </label>
+          <span class="tool-sep" aria-hidden="true"></span>
+          <label class="checkline sfs-toggle" title="按 PDF / Word 原文的各级字号转写：标题大、正文中、脚注小；关闭则全文统一字号">
+            <input type="checkbox" id="sizeFromSource" checked> 按原文大小
+          </label>
         </div>
-      </div>
-
-      <!-- 输入页签：导入（默认） / 编辑 -->
-      <div class="input-tabs" id="inputTabs" role="tablist" aria-label="输入方式">
-        <button type="button" class="tab-btn" id="tabImport" role="tab" aria-selected="true">导入</button>
-        <button type="button" class="tab-btn" id="tabEdit" role="tab" aria-selected="false">编辑</button>
       </div>
 
       <div class="import-status" id="importStatus" hidden></div>
 
-      <!-- 导入页：一整块可点击 / 可拖拽的面板（默认展示，导入后自动切到「编辑」） -->
+      <!-- 导入页：一整块可点击 / 可拖拽的面板（唯一输入方式；编辑器已移除） -->
       <div class="import-view" id="importView">
         <div class="dropzone-card" id="dropCard" role="button" tabindex="0"
              aria-label="点击选择文件，或把文件拖到这里">
@@ -111,16 +103,11 @@
         <div class="queue-empty" id="queueEmpty">还没有文档。点上方「导入文件 / 识别图片」，或把多个文件拖进来。</div>
       </div>
 
-      <!-- 编辑页：单篇编辑器 -->
-      <div class="editor-wrap" id="editorWrap" hidden>
-        <label class="sr-only" for="source">文档内容</label>
-        <textarea id="source" spellcheck="false"
-          placeholder="在此粘贴 Markdown / LaTeX，或点上方「导入」页签导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $...$"></textarea>
-        <div class="editor-foot">
-          <span id="counts">0 字符 · 0 行</span>
-          <span class="spacer"></span>
-          <span>Ctrl/⌘ + Enter 立即重绘</span>
-        </div>
+      <!-- 文档信息（原编辑器位置；编辑器已移除，仅保留只读统计） -->
+      <div class="doc-info">
+        <span id="counts">0 字符 · 0 行</span>
+        <span class="spacer"></span>
+        <span class="doc-info-hint">Ctrl/⌘ + Enter 立即重绘</span>
       </div>
     </section>
 
@@ -286,7 +273,7 @@
       <div class="preview-empty" id="empty">
         <div class="pe-ico" aria-hidden="true">📄</div>
         <div class="pe-title">还没有内容</div>
-        <div class="pe-sub">在左侧导入或编辑文档，这里会实时出现手写效果</div>
+        <div class="pe-sub">在左侧导入文档，这里会实时出现手写效果</div>
         <div class="pe-hint">公式用 <code>$...$</code> 或 <code>$$...$$</code> 包裹</div>
       </div>
 
@@ -316,12 +303,15 @@
   <div class="dlg-head">使用说明</div>
   <div class="dlg-body">
     <p><b>三步出结果</b></p>
-    <p>1. 左侧「导入」页签可导入 PDF / Word / 图片 / TXT，也可切到「编辑」页签直接输入 Markdown；<br>
-       2. 公式用 <code>$...$</code>（行内）或 <code>$...$</code>（独立成行）；<br>
+    <p>1. 左侧导入 PDF / Word / 图片 / TXT / Markdown（可多选，也可整块拖入）；<br>
+       2. 公式用 <code>$...$</code>（行内）或 <code>$$...$$</code>（独立成行）；<br>
        3. 右侧实时预览，满意后点「导出 PNG / PDF」。</p>
     <div class="divider"></div>
-    <p><b>单篇 / 批量</b></p>
-    <p>左栏工具栏右侧可切「单篇 / 批量」：单篇即时出稿；批量把多个文件排队，逐个转写并缓存（不刷新即可随时点看），勾选后可一次批量导出。</p>
+    <p><b>单篇与批量</b></p>
+    <p>导入<b>一个</b>文件 → 直接出稿；导入<b>多个</b>文件 → 自动组成「批量队列」，逐个转写并缓存（不刷新即可随时点看），勾选后可一次批量导出。无需手动切换。</p>
+    <div class="divider"></div>
+    <p><b>按原文大小转写</b></p>
+    <p>默认按 PDF / Word 里<b>原本的字号层级</b>转写：大标题更大、正文正常、脚注更小，而不是全文统一字号。想统一字号时，关闭左栏的「按原文大小」开关即可。</p>
     <div class="divider"></div>
     <p><b>支持哪些公式？</b></p>
     <p>由 MathJax 渲染，支持分数、根号、上下标、求和、积分、矩阵、希腊字母等几乎全部 LaTeX 数学语法。</p>

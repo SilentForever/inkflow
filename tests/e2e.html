@@ -63,12 +63,6 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
           </label>
         </div>
         <div class="tb-row">
-          <div class="tool-group">
-            <button type="button" class="fmt-btn" id="fmtBold" aria-pressed="false" title="加粗（Ctrl/⌘ + B）"><b>B</b></button>
-            <button type="button" class="fmt-btn" id="fmtItalic" aria-pressed="false" title="斜体（Ctrl/⌘ + I）"><i>I</i></button>
-            <button type="button" class="fmt-btn" id="fmtUnder" aria-pressed="false" title="下划线（Ctrl/⌘ + U）"><u>U</u></button>
-          </div>
-          <span class="tool-sep" aria-hidden="true"></span>
           <label class="fmt-color" title="字色">
             <input type="color" id="textColor" value="#1b2a5e">
             <span>字色</span>
@@ -79,16 +73,16 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
             <input type="range" id="textScale" min="0.7" max="1.6" step="0.05" value="1">
             <output id="textScaleOut">1.00×</output>
           </label>
+          <span class="tool-sep" aria-hidden="true"></span>
+          <label class="checkline sfs-toggle" title="按 PDF / Word 原文的各级字号转写">
+            <input type="checkbox" id="sizeFromSource" checked> 按原文大小
+          </label>
         </div>
       </div>
 
-      <!-- 输入页签：导入（默认） / 编辑 -->
-      <div class="input-tabs" id="inputTabs" role="tablist" aria-label="输入方式">
-        <button type="button" class="tab-btn" id="tabImport" role="tab" aria-selected="true">导入</button>
-        <button type="button" class="tab-btn" id="tabEdit" role="tab" aria-selected="false">编辑</button>
-      </div>
+      <div class="import-status" id="importStatus" hidden></div>
 
-      <!-- 导入页：一整块可点击 / 可拖拽的面板（默认展示，导入后自动切到「编辑」） -->
+      <!-- 导入页：一整块可点击 / 可拖拽的面板（唯一输入方式；编辑器已移除） -->
       <div class="import-view" id="importView">
         <div class="dropzone-card" id="dropCard" role="button" tabindex="0"
              aria-label="点击选择文件，或把文件拖到这里">
@@ -125,16 +119,11 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       <input type="file" id="fileInput" class="sr-only" multiple
              accept=".md,.markdown,.txt,.text,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp">
 
-      <!-- 编辑页：单篇编辑器 -->
-      <div class="editor-wrap" id="editorWrap" hidden>
-        <label class="sr-only" for="source">文档内容</label>
-        <textarea id="source" spellcheck="false"
-          placeholder="在此粘贴 Markdown / LaTeX，或点上方「导入」页签导入 PDF / Word / 图片…&#10;&#10;行内公式用 $...$，独立公式用 $...$"></textarea>
-        <div class="editor-foot">
-          <span id="counts">0 字符 · 0 行</span>
-          <span class="spacer"></span>
-          <span>Ctrl/⌘ + Enter 立即重绘</span>
-        </div>
+      <!-- 文档信息（原编辑器位置，只读） -->
+      <div class="doc-info">
+        <span id="counts">0 字符 · 0 行</span>
+        <span class="spacer"></span>
+        <span class="doc-info-hint">Ctrl/⌘ + Enter 立即重绘</span>
       </div>
     </section>
 
@@ -433,69 +422,55 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "中文不变、英文换字体 → 输出不同";
     });
 
-    await t("面板：导入页 / 编辑页 互斥；队列内联在导入页、空队列时不占位", async function(){
-      /* 曾因作者样式的 display:flex 覆盖 [hidden] 的 display:none，
-         导致非当前面板也显示出来；改为统一由 syncPanels 控制 */
-      function vis(id){ var el = $(id); return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
+    await t("面板：唯一「导入」页；编辑器已移除；多选自动成批量", async function(){
+      function vis(id){ var el = $(id); return el && el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
       window.InkQueue.clearAll();
-      /* 默认：导入页可见，编辑器与队列都不占位 */
-      if (!vis("importView")) throw new Error("默认应停在导入页");
-      if (vis("editorWrap")) throw new Error("默认导入页下编辑器不该占位");
-      if (vis("queuePanel")) throw new Error("队列为空时不该占位");
-      /* 切到「编辑」页 → 编辑器可见，导入页与队列都隐藏 */
-      $("tabEdit").click(); await sleep(300);
-      if (vis("importView") || !vis("editorWrap")) throw new Error("编辑页未生效");
-      if (vis("queuePanel")) throw new Error("编辑页下队列不该占位");
-      /* 单篇 / 批量 切换按钮已移除：由文件数自动决定 */
+      if (!vis("importView")) throw new Error("应常驻导入页");
+      if ($("editorWrap") || $("tabEdit") || $("tabImport") || $("inputTabs")) throw new Error("编辑器 / 输入页签应已移除");
       if ($("modeSingle") || $("modeQueue") || $("queueTools")) throw new Error("单篇/批量切换按钮应已移除");
-      /* 一次导入 2 篇（多选）→ 留在导入页并就地展开批量队列 */
+      if (vis("queuePanel")) throw new Error("队列为空时不该占位");
+      /* 一次导入 2 篇（多选）→ 就地展开批量队列 */
       await window.InkImport.handleFiles([new File(["$a^2$"], "a.md"), new File(["$b^2$"], "b.md")]);
       await sleep(400);
-      if (!vis("importView")) throw new Error("批量导入后应留在导入页");
+      if (!vis("importView")) throw new Error("批量导入后应在导入页");
       if (!vis("queuePanel")) throw new Error("导入 ≥2 篇后队列应自动展开");
-      if (vis("editorWrap")) throw new Error("批量下编辑器不该占位");
       if (document.querySelectorAll("#queueList li").length !== 2) throw new Error("队列应有 2 篇");
-      /* 点「编辑」→ 清空队列并进入单篇编辑器 */
-      $("tabEdit").click(); await sleep(300);
-      if (window.InkQueue.items().length !== 0) throw new Error("进入编辑页应清空队列");
-      if (vis("queuePanel") || !vis("editorWrap")) throw new Error("切到编辑页失败");
-      window.InkQueue.clearAll();
-      $("tabImport").click(); await sleep(200);   // 复位到默认「导入」页，避免影响后续用例
-      return "导入 / 编辑 互斥；多选自动批量";
+      window.InkQueue.clearAll(); await sleep(200);
+      return "导入页唯一、编辑器移除、多选自动批量";
     });
 
-    await t("视图：导入 / 编辑 页签切换（WPS 式工具栏）", async function(){
-      function vis(id){ var el = $(id); return el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== "none"; }
-      if ($("tabImport").getAttribute("aria-selected") !== "true") throw new Error("默认应选中「导入」");
-      $("tabEdit").click(); await sleep(300);
-      if ($("tabEdit").getAttribute("aria-selected") !== "true") throw new Error("编辑页签未选中");
-      if (!vis("editorWrap")) throw new Error("编辑页应显示编辑器");
-      if (!$("fontSize")) throw new Error("字号控件应在左栏工具栏内");
-      if (!$("textColor")) throw new Error("字色控件应在左栏工具栏内");
-      if (!$("fontCJK") || !$("fontLat")) throw new Error("字体下拉应在左栏工具栏内");
-      if ($("fontSize").type !== "number") throw new Error("字号应为数字输入框而非滑杆");
-      $("tabImport").click(); await sleep(300);
-      if (!vis("importView")) throw new Error("导入页未生效");
-      return "导入 / 编辑页签互斥，工具栏含字体 / 字号 / 字色";
+    await t("视图：左栏工具栏含字体 / 字号 / 字色，无「编辑」页签", async function(){
+      if ($("tabImport") || $("tabEdit") || $("inputTabs")) throw new Error("输入页签应已移除");
+      if (!$("fontSize") || $("fontSize").type !== "number") throw new Error("字号应为数字输入框而非滑杆");
+      if (!$("textColor")) throw new Error("缺字色控件");
+      if (!$("fontCJK") || !$("fontLat")) throw new Error("缺字体下拉");
+      if (!$("sizeFromSource")) throw new Error("缺「按原文大小」开关");
+      return "工具栏完整，无冗余页签";
     });
 
-    await t("导入：单篇进「编辑」页、多篇就地成批量（无模式开关）", async function(){
+    await t("导入：单篇直接出稿、多篇就地成批量（无模式开关）", async function(){
       if ($("modeSingle") || $("modeQueue") || $("queueTools")) throw new Error("单篇/批量切换按钮应已移除");
       window.InkQueue.clearAll();
-      /* 单篇 → 自动进入「编辑」页，且不进队列 */
-      await window.InkImport.handleFiles([new File(["$x=1$"], "one.md")]);
-      await sleep(500);
-      if ($("tabEdit").getAttribute("aria-selected") !== "true") throw new Error("单篇导入应进入编辑页");
-      if ($("source").value.indexOf("x=1") < 0) throw new Error("单篇内容未写入编辑器");
+      /* 单篇 → 直接渲染出稿，不进队列 */
+      await window.InkImport.handleFiles([new File(["# 大标题\n\n正文内容 abc 123，公式 $x=1$。"], "one.md")]);
+      if ((window.InkApp.state.docText || "").indexOf("大标题") < 0) throw new Error("单篇内容未载入渲染");
+      /* 渲染是异步的（MathJax + 字体就绪），轮询等待出稿 */
+      var cv = null, ink = 0;
+      for (var w = 0; w < 12; w++) {
+        await sleep(500);
+        cv = document.querySelector("canvas");
+        ink = cv ? inkOf(cv) : 0;
+        if (ink >= 10) break;
+      }
       if (window.InkQueue.items().length !== 0) throw new Error("单篇不该进队列");
-      /* 多篇 → 留在导入页，队列自动出现 */
-      $("tabImport").click(); await sleep(150);
+      if (!cv || ink < 10) throw new Error("单篇未出稿 (ink=" + ink + ")");
+      /* 多篇 → 队列自动出现 */
       await window.InkImport.handleFiles([new File(["$a$"], "a.md"), new File(["$b$"], "b.md")]);
-      await sleep(400);
+      await sleep(500);
       if ($("queuePanel").hidden) throw new Error("多篇导入后队列应展开");
       if (document.querySelectorAll("#queueList li").length !== 2) throw new Error("队列应有 2 篇");
-      window.InkQueue.clearAll(); await sleep(120);
-      return "单篇→编辑页 / 多篇→就地批量";
+      window.InkQueue.clearAll(); await sleep(150);
+      return "单篇→直接出稿 / 多篇→就地批量";
     });
 
     await t("队列：多文档排队转写 + 缓存 + 批量导出可选", async function(){
@@ -526,14 +501,28 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "2 完成 / 1 失败 / 缓存命中 / 勾选 2";
     });
 
-    await t("交互：输入触发重绘", async function(){
-      var ta = $("source");
-      ta.value = "# E2E 测试\n\n公式 $a^2+b^2=c^2$ 与 $\\int_0^1 x\\,dx=\\frac{1}{2}$";
-      ta.dispatchEvent(new Event("input", {bubbles:true}));
-      await sleep(1600);
-      var cv = document.querySelector("canvas"); if (!cv) throw new Error("no canvas");
-      var ink = inkOf(cv); if (ink < 20) throw new Error("blank ink=" + ink);
-      return cv.width + "x" + cv.height + ", ink=" + ink;
+    await t("交互：按原文大小转写生效（开 / 关输出不同）", async function(){
+      var mk = window.InkParser.szMark;
+      var doc = mk(180) + "大标题\n\n" + mk(100) + "正文内容若干\n\n" + mk(70) + "脚注小字";
+      function inkNow(){ var c=document.querySelector("canvas"); return c?inkOf(c):0; }
+      window.InkApp.state.sizeFromSource = true;
+      window.InkApp.loadDocText(doc);
+      for (var w=0; w<12 && inkNow()<10; w++) await sleep(500);
+      var cv1 = document.querySelector("canvas"); if (!cv1) throw new Error("no canvas");
+      if (inkOf(cv1) < 10) throw new Error("blank ink=" + inkOf(cv1));
+      var h1 = hashAll(cv1);
+      window.InkApp.state.sizeFromSource = false;
+      window.InkApp.loadDocText(doc);
+      for (var w2=0; w2<12 && inkNow()<10; w2++) await sleep(500);
+      await sleep(300);
+      var h2 = hashAll(document.querySelector("canvas"));
+      if (h1 === h2) throw new Error("「按原文大小」开关未改变输出");
+      /* 还原 */
+      window.InkApp.state.sizeFromSource = true;
+      if ($("sizeFromSource")) $("sizeFromSource").checked = true;
+      window.InkApp.loadDocText(window.InkSamples.equation);
+      await sleep(1500);
+      return "按原文大小 开/关 → 输出不同";
     });
 
     await t("交互：全部字体逐一渲染", async function(){
@@ -593,24 +582,9 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "头部宽 " + head.clientWidth + "，内容宽 " + head.scrollWidth;
     });
 
-    await t("文字样式：加粗 / 斜体 / 下划线 改变输出", async function(){
-      $("fontLat").value = "caveat"; $("fontLat").dispatchEvent(new Event("change", {bubbles:true}));
-      await sleep(900);
-      var a = hashAll(document.querySelector("canvas"));
-      $("fmtBold").click(); await sleep(900);
-      var b = hashAll(document.querySelector("canvas"));
-      if (a === b) throw new Error("bold had no effect");
-      if ($("fmtBold").getAttribute("aria-pressed") !== "true") throw new Error("bold aria-pressed 未更新");
-      $("fmtBold").click(); await sleep(700);
-      $("fmtItalic").click(); await sleep(900);
-      var c = hashAll(document.querySelector("canvas"));
-      if (b === c) throw new Error("italic had no effect");
-      $("fmtItalic").click(); await sleep(700);
-      $("fmtUnder").click(); await sleep(900);
-      var d = hashAll(document.querySelector("canvas"));
-      if (c === d) throw new Error("underline had no effect");
-      $("fmtUnder").click(); await sleep(700);
-      return "加粗 / 斜体 / 下划线 均生效";
+    await t("样式：加粗 / 斜体 / 下划线按钮已随编辑器移除", async function(){
+      if ($("fmtBold") || $("fmtItalic") || $("fmtUnder")) throw new Error("B/I/U 按钮应已移除");
+      return "已移除（工具栏仅保留字色 / 缩放 / 按原文大小）";
     });
 
     await t("文字样式：字色与缩放生效", async function(){
@@ -719,7 +693,6 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     });
 
     await t("交互：纸张与字号（WPS 式数字框）", async function(){
-      $("tabEdit").click(); await sleep(200);            /* 编辑器在「编辑」页 */
       $("paper").value = "grid"; $("paper").dispatchEvent(new Event("change", {bubbles:true}));
       $("fontSize").value = "40"; $("fontSize").dispatchEvent(new Event("input", {bubbles:true}));
       await sleep(1100);
@@ -746,9 +719,9 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
 
     await t("交互：清空 + 载入示例", async function(){
       $("clearAll").click(); await sleep(900);
-      if ($("source").value !== "") throw new Error("not cleared");
+      if ((window.InkApp.state.docText || "") !== "") throw new Error("not cleared");
       $("loadDemo").click(); await sleep(1700);
-      if ($("source").value.length < 20) throw new Error("demo missing");
+      if ((window.InkApp.state.docText || "").length < 20) throw new Error("demo missing");
       if (!document.querySelector("canvas")) throw new Error("no canvas");
       return "正常";
     });

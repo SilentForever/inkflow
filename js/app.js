@@ -75,7 +75,8 @@
 
   /* ================= 状态 ================= */
   var state = {
-    source: "",
+    docText: "",              // 导入的文档原文（唯一输入来源；编辑器已移除）
+    sizeFromSource: true,     // 按原文（PDF/Word）字号转写（解析器用块首标记承载）
     pageSize: "a4",
     paper: "ruled",
     fontKey: "zenkurenaido",
@@ -120,6 +121,7 @@
       hand: state.hand, handCustom: state.handCustom,
       bold: state.bold, italic: state.italic, underline: state.underline,
       textColor: state.textColor, textScale: state.textScale,
+      sizeFromSource: state.sizeFromSource,
       marginTop: m, marginBottom: Math.round(m * 0.9), marginLeft: m, marginRight: Math.round(m * 0.8),
       showHeader: state.showHeader, headerText: state.headerText,
       showDate: state.showDate, dateText: new Date().toLocaleDateString("zh-CN"),
@@ -175,10 +177,17 @@
     return doRender();
   }
 
+  /* 载入文档原文（导入结果 / 示例）并立即渲染 */
+  function loadDocText(text) {
+    state.docText = String(text == null ? "" : text);
+    updateCounts();
+    clearDirty();
+    return scheduleRender(true);
+  }
+
   async function doRender() {
     var token = ++renderToken;
-    var src = els.source ? els.source.value : "";
-    state.source = src;
+    var src = state.docText || "";
     if (!src.trim()) {
       pages = []; currentPage = 0;
       showEmpty(true);
@@ -313,8 +322,6 @@
   }
 
   function initControls() {
-    els.source = $("source");
-
     /* ---------- 中英字体：分别选择 ---------- */
     function fillFontSelect(selId, lang, current) {
       var sel = $(selId);
@@ -404,8 +411,6 @@
     var re = $("reseed");
     if (re) re.addEventListener("click", function () { state.seed = Math.floor(Math.random() * 1e9); if (seed) seed.value = String(state.seed); scheduleRender(true); toast("已生成新随机种子", "ok", 1600); });
 
-    if (els.source) els.source.addEventListener("input", function () { updateCounts(); scheduleRender(); });
-
     var prev = $("prevPage"), next = $("nextPage");
     if (prev) prev.addEventListener("click", function () { paintPage(currentPage - 1); });
     if (next) next.addEventListener("click", function () { paintPage(currentPage + 1); });
@@ -426,10 +431,17 @@
     });
 
     var clr = $("clearAll");
-    if (clr) clr.addEventListener("click", function () { els.source.value = ""; state.source = ""; updateCounts(); scheduleRender(true); toast("已清空", "ok", 1400); });
+    if (clr) clr.addEventListener("click", function () {
+      if (global.InkQueue) global.InkQueue.clearAll();
+      loadDocText("");
+      toast("已清空", "ok", 1400);
+    });
 
     var demo = $("loadDemo");
-    if (demo) demo.addEventListener("click", function () { els.source.value = global.InkSamples.equation; updateCounts(); scheduleRender(true); });
+    if (demo) demo.addEventListener("click", function () {
+      if (global.InkQueue) global.InkQueue.clearAll();
+      loadDocText(global.InkSamples.equation);
+    });
 
     /* ---------- 自定义字体：仅本地读取 ---------- */
     var cf = $("customFont");
@@ -467,18 +479,34 @@
     if (hclose) hclose.addEventListener("click", function () { var d = $("helpDlg"); if (d) d.close(); });
 
     /* ---------- 导入：文件 / 图片 / 粘贴识别 ---------- */
-    /* 单篇导入 → 自动进「编辑」页；多篇导入 → 留在导入页并就地展开批量队列 */
+    /* 无「编辑」页：单选导入 → 直接渲染到右侧预览；多选导入 → 就地组成批量队列 */
+    var batchBuf = [], batchNames = [], batchTimer = null;
+    function flushBatch() {
+      batchTimer = null;
+      if (!batchBuf.length) return;
+      var texts = batchBuf, names = batchNames;
+      batchBuf = []; batchNames = [];
+      for (var i = 0; i < texts.length; i++) global.InkQueue.add(names[i], "text", texts[i]);
+      setView("import");
+      renderQueueList();
+    }
     function afterImport(info) {
-      updateCounts();
-      var added = (info && info.added) || 0;
-      if (added > 0) { setView("import"); renderQueueList(); }   // 批量：回到导入页，队列就地展开
-      else { setView("edit"); scheduleRender(true); }            // 单篇：进「编辑」页
+      if (info && info.multi) {                 // 批量：本轮文件解析完一次性入队
+        if (batchTimer) clearTimeout(batchTimer);
+        batchTimer = setTimeout(flushBatch, 80);
+      }
     }
     if (global.InkImport) global.InkImport.bind({
-      getSource: function () { return els.source || $("source"); },
       toast: toast,
-      queueMode: function () { return false; },   // 模式已取消：由文件数决定单篇 / 批量
-      onItem: function (name, kind, text) { global.InkQueue.add(name, kind, text); },
+      onItem: function (name, kind, text, opts) {
+        if (opts && opts.multi) { batchBuf.push(text); batchNames.push(name); }
+        else {
+          /* 单篇：清掉上一批队列，直接把这篇渲染到右侧预览 */
+          if (global.InkQueue) global.InkQueue.clearAll();
+          setView("import");
+          loadDocText(text);
+        }
+      },
       onDone: afterImport
     });
 
@@ -516,42 +544,20 @@
       });
     }
 
-    /* ---------- 文字样式（加粗 / 斜体 / 下划线 / 字色 / 缩放） ---------- */
-    function bindFmt(id, key) {
-      var el = $(id);
-      if (!el) return;
-      el.setAttribute("aria-pressed", state[key] ? "true" : "false");
-      el.addEventListener("click", function () {
-        state[key] = !state[key];
-        el.setAttribute("aria-pressed", state[key] ? "true" : "false");
-        scheduleRender(true);
-      });
-    }
-    bindFmt("fmtBold", "bold");
-    bindFmt("fmtItalic", "italic");
-    bindFmt("fmtUnder", "underline");
-
+    /* ---------- 文字样式（字色 / 缩放）；B/I/U 已随编辑器移除 ---------- */
     var tcol = $("textColor");
     if (tcol) { tcol.value = state.textColor; tcol.addEventListener("input", function () { state.textColor = tcol.value; scheduleRender(); }); }
     bindRange("textScale", "textScale", function (v) { return v.toFixed(2) + "×"; });
 
-    /* ---------- 左栏页签：导入（默认） / 编辑 ---------- */
-    var view = "import";
-    /* 面板可见性统一由 syncPanels 决定：
-       导入页 = 导入面板（+ 批量队列，导入 ≥2 篇后自动出现）；编辑页 = 单篇编辑器 */
+    /* ---------- 左栏面板：只有「导入」页（含内联批量队列）；编辑器已移除 ---------- */
     function syncPanels() {
-      var ti = $("tabImport"), te = $("tabEdit");
-      var importTab = (view === "import");
-      if (ti) ti.setAttribute("aria-selected", importTab ? "true" : "false");
-      if (te) te.setAttribute("aria-selected", !importTab ? "true" : "false");
-      var iv = $("importView"), ew = $("editorWrap"), qp = $("queuePanel");
-      if (iv) iv.hidden = !importTab;
-      if (ew) ew.hidden = (view !== "edit");
-      /* 批量队列内联在「导入」页：导入 ≥2 篇后自动出现，无需手动切换模式 */
+      var iv = $("importView"), qp = $("queuePanel");
+      if (iv) iv.hidden = false;
+      /* 批量队列内联在导入页：导入 ≥2 篇后自动出现 */
       if (qp) {
         var hasQ = !!(global.InkQueue && global.InkQueue.items().length);
         var head = iv ? iv.querySelector(".queue-head") : null;
-        if (importTab && hasQ) {
+        if (hasQ) {
           if (qp.parentNode !== iv) {
             if (!head) {
               head = document.createElement("div");
@@ -571,16 +577,7 @@
         }
       }
     }
-    function setView(v) {
-      view = (v === "edit") ? "edit" : "import";
-      syncPanels();
-      if (view === "edit" && els.source) els.source.focus();
-    }
-    if ($("tabImport")) $("tabImport").addEventListener("click", function () { setView("import"); });
-    if ($("tabEdit")) $("tabEdit").addEventListener("click", function () {
-      if (global.InkQueue) global.InkQueue.clearAll();   // 进入编辑 = 开始单篇：清掉上一批
-      setView("edit");
-    });
+    function setView() { syncPanels(); }
 
     /* ---------- 批量队列（内联在「导入」页） ---------- */
     function showQueueItem(id) {
@@ -670,11 +667,9 @@
     if (global.InkQueue) global.InkQueue.bind({ toast: toast, onChange: function () {
       syncPanels();
       renderQueueList();
-      var cur = global.InkQueue.current();
-      if (cur && cur.pages) { pages = cur.pages; currentPage = 0; paintPage(0); }
     }});
 
-    setView("import");
+    setView();
 
     /* ---------- 生成按钮 + 自动重绘开关 ---------- */
     var regen = $("regenerate");
@@ -683,6 +678,13 @@
       toast("正在生成手写稿…", "ok", 900);
       regenerate();
     });
+
+    /* 按原文大小转写（默认开）：关闭后所有文字统一字号 */
+    var sfs = $("sizeFromSource");
+    if (sfs) {
+      sfs.checked = state.sizeFromSource !== false;
+      sfs.addEventListener("change", function () { state.sizeFromSource = sfs.checked; scheduleRender(true); });
+    }
 
     var auto = $("autoRender");
     if (auto) {
@@ -702,9 +704,6 @@
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "Enter") { e.preventDefault(); clearDirty(); regenerate(); }
       var k = e.key.toLowerCase();
-      if (k === "b") { e.preventDefault(); var fb = $("fmtBold"); if (fb) fb.click(); }
-      if (k === "i") { e.preventDefault(); var fi = $("fmtItalic"); if (fi) fi.click(); }
-      if (k === "u") { e.preventDefault(); var fu = $("fmtUnder"); if (fu) fu.click(); }
       if (k === "s") { e.preventDefault(); var b = $("exportPdf"); if (b) b.click(); }
     });
   }
@@ -731,7 +730,7 @@
   function updateCounts() {
     var el = $("counts");
     if (!el) return;
-    var s = els.source ? els.source.value : "";
+    var s = state.docText || "";
     var chars = s.length;
     var lines = s ? s.split("\n").length : 0;
     el.textContent = chars + " 字符 · " + lines + " 行";
@@ -775,7 +774,7 @@
     }
 
     // 载入示例
-    if (els.source) els.source.value = global.InkSamples.equation;
+    state.docText = global.InkSamples.equation;
     updateCounts();
     scheduleRender(true);
 
@@ -803,7 +802,7 @@
     });
   }
 
-  global.InkApp = { state: state, toSettings: toSettings, doRender: doRender, regenerate: regenerate, scheduleRender: scheduleRender, registerFonts: registerFonts, setFontBase: setFontBase, boot: boot };
+  global.InkApp = { state: state, toSettings: toSettings, doRender: doRender, regenerate: regenerate, scheduleRender: scheduleRender, registerFonts: registerFonts, setFontBase: setFontBase, loadDocText: loadDocText, boot: boot };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })(typeof window !== "undefined" ? window : this);

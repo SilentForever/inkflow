@@ -279,29 +279,37 @@
       else if (!tokens.length) pushLine([], kind, size, "left", 0);
     }
 
+    /* 每块的「原文大小」系数：px 为相对文档正文字号的百分比（导入器写入）。
+       无标记（手写输入/示例）→ 1，即统一字号。 */
+    function factor(b) {
+      var f = (b && b.px) ? (b.px / 100) : 1;
+      return U.clamp(f, 0.5, 2.4);
+    }
+
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
-      if (b.type === "blank") { pushLine([], "blank", s.fontSize, "left", 0); continue; }
-      if (b.type === "hr") { pushLine([], "hr", s.fontSize, "left", 0); continue; }
+      var fz = s.fontSize * factor(b);
+      if (b.type === "blank") { pushLine([], "blank", fz, "left", 0); continue; }
+      if (b.type === "hr") { pushLine([], "hr", fz, "left", 0); continue; }
 
       if (b.type === "heading") {
-        var hs = s.fontSize * (b.level <= 1 ? 1.7 : b.level === 2 ? 1.42 : 1.2);
+        var hs = fz * (b.level <= 1 ? 1.7 : b.level === 2 ? 1.42 : 1.2);
         flow(inlineTokens(b.text, hs, s.fontKey, s), "heading", hs);
-        pushLine([], "gap", s.fontSize * 0.4, "left", 0);
+        pushLine([], "gap", fz * 0.4, "left", 0);
         continue;
       }
-      if (b.type === "para") { flow(inlineTokens(b.text, s.fontSize, s.fontKey, s), "para", s.fontSize); continue; }
+      if (b.type === "para") { flow(inlineTokens(b.text, fz, s.fontKey, s), "para", fz); continue; }
       if (b.type === "bullet") {
-        flow(inlineTokens("\u2022  " + b.text, s.fontSize, s.fontKey, s), "para", s.fontSize);
+        flow(inlineTokens("\u2022  " + b.text, fz, s.fontKey, s), "para", fz);
         continue;
       }
       if (b.type === "ordered") {
-        flow(inlineTokens(b.num + ".  " + b.text, s.fontSize, s.fontKey, s), "para", s.fontSize);
+        flow(inlineTokens(b.num + ".  " + b.text, fz, s.fontKey, s), "para", fz);
         continue;
       }
       if (b.type === "code") {
         var cl = String(b.text).split("\n");
-        var cs = s.fontSize * 0.82;
+        var cs = fz * 0.82;
         for (var c = 0; c < cl.length; c++) {
           var ct = cl[c] || " ";
           var cfont = styledFont(cs, MONO, s);
@@ -310,7 +318,7 @@
         continue;
       }
       if (b.type === "mathblock") {
-        var ms = (s.formulaPx || s.fontSize) * 1.25;
+        var ms = (s.formulaPx || s.fontSize) * factor(b) * 1.25;
         var dhand = formulaHandOf(s), dseed = mathSeedOf(b.latex, s);
         var mm = global.InkMath.render(b.latex, ms, s.inkColor, dhand, dseed, { handFonts: mathFontsOf(s) });
         /* 独立公式过宽时等比缩小，保证不出血 */
@@ -325,7 +333,7 @@
             size: ms, font: fontCssOf(s.fontKey) }], "mathblock", ms, "center", 0);
         } else {
           var raw = "$$" + b.latex + "$$";
-          pushLine([{ kind: "text", text: raw, w: measureText(raw, s.fontSize, fontCssOf(s.fontKey)), h: s.fontSize, size: s.fontSize, font: fontCssOf(s.fontKey), degraded: true }], "para", s.fontSize, "left", 0);
+          pushLine([{ kind: "text", text: raw, w: measureText(raw, fz, fontCssOf(s.fontKey)), h: fz, size: fz, font: fontCssOf(s.fontKey), degraded: true }], "para", fz, "left", 0);
         }
         continue;
       }
@@ -344,7 +352,8 @@
     return tk.size * 0.26;
   }
   function metricsOf(ln, s) {
-    var asc = s.fontSize * 0.80, desc = s.fontSize * 0.26;
+    var baseSize = ln.size || s.fontSize;
+    var asc = baseSize * 0.80, desc = baseSize * 0.26;
     for (var t = 0; t < ln.tokens.length; t++) {
       var a = ascentOf(ln.tokens[t]), d = descentOf(ln.tokens[t]);
       if (a > asc) asc = a;
@@ -354,15 +363,17 @@
   }
 
   function lineHeightFor(ln, s) {
-    if (ln.kind === "blank") return s.lineHeightPx * 0.5;
-    if (ln.kind === "gap") return s.lineHeightPx * 0.3;
-    if (ln.kind === "hr") return s.lineHeightPx * 0.8;
-    if (ln.kind === "code") return s.lineHeightPx * 0.92;
+    var sz = ln.size || s.fontSize;
+    var lh = sz * s.lineHeight;          /* 行高随该行字号缩放（保留原文大小） */
+    if (ln.kind === "blank") return lh * 0.5;
+    if (ln.kind === "gap") return lh * 0.3;
+    if (ln.kind === "hr") return lh * 0.8;
+    if (ln.kind === "code") return lh * 0.92;
     var m = metricsOf(ln, s);
-    var needed = m.asc + m.desc + s.fontSize * 0.12;
-    var base = s.lineHeightPx;
-    if (ln.kind === "heading") base = Math.max(base, ln.size * 1.5);
-    if (ln.kind === "mathblock") base = Math.max(base, m.asc + m.desc + s.fontSize * 0.6);
+    var needed = m.asc + m.desc + sz * 0.12;
+    var base = lh;
+    if (ln.kind === "heading") base = Math.max(base, sz * 1.5);
+    if (ln.kind === "mathblock") base = Math.max(base, m.asc + m.desc + sz * 0.6);
     return Math.max(base, needed);
   }
 
@@ -425,6 +436,11 @@
     /* 公式字号随**英文字体**的视觉比例自适应（公式里数字/拉丁为主） */
     var fscale = formulaScaleOf(s.fontKeyLat || s.fontKey) * (s.formulaScale || 1);
     s.formulaPx = s.fontSize * fscale;
+
+    /* 「按原文大小」关闭时清掉块字号标记 → 全文统一字号（队列转写同样受此控制） */
+    if (s.sizeFromSource === false) {
+      for (var z = 0; z < blocks.length; z++) blocks[z].px = 0;
+    }
 
     var lines = layoutBlocks(blocks, s);
     var tLayout = now();

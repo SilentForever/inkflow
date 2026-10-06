@@ -16,6 +16,9 @@
     formulaScribble:0.5,formulaScale:1,seed:20240517,marginTop:88,marginBottom:79,marginLeft:88,marginRight:70,
     showHeader:true,headerText:"作业",showDate:false,showFooter:true,showTotalPages:true};
   var CW=S_PAGE_W(); function S_PAGE_W(){return 1240-88-70;}
+  /* render() 会补上这些分页字段；harness 直接调用 paginate/lineHeightFor，
+     必须自行补全，否则行高为 NaN、分页检查形同虚设 */
+  S.pageWidth=1240; S.pageHeight=1754; S.lineHeightPx=S.fontSize*S.lineHeight;
   function isNum(v){return typeof v==="number"&&isFinite(v);}
   for(var di=0;di<window.InkCorpus.length;di++){
     var doc=window.InkCorpus[di]; var name=doc.name;

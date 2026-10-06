@@ -52,3 +52,53 @@ function textFile(text, name) { return new File([text], name, { type: 'text/plai
   }
   out.textContent = 'IMPORT:' + JSON.stringify(res);
 })();
+
+/* ================= 按原文大小：DOCX / PDF 字号提取回归 ================= */
+var SIZED_DOCX_B64 = "UEsDBBQAAAAIAJdWRl3wSsJ/+AAAACwCAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbK2Ru07DMBSGX8U6a5U4MCCEknbgMgJDeYAj+ySx8E0+bmneHqcpHVCBhdH+L98vu90cnBV7SmyC7+CqbkCQV0EbP3Twtn2qbkFwRq/RBk8dTMSwWbfbKRKLkvXcwZhzvJOS1UgOuQ6RfFH6kBzmckyDjKjecSB53TQ3UgWfyecqzx2wbh+ox53N4vFQrpcdiSyDuF+MM6sDjNEahbnocu/1N0p1ItQlefTwaCKvigHkRcKs/Aw45V7KwySjSbxiys/oikt+hKSlDmrnSrL+vebCztD3RtE5P7fFFBQxlxd3tj4rDo1f/bWD82SJ/3/F0vuFl8ffXn8CUEsDBBQAAAAIAJdWRl1g5jVovgAAAK0BAAALAAAAX3JlbHMvLnJlbHOtkE0LwjAMhv9Kyd117iAi63YRYVeZP6C02QdubWnqx/69BRWc7ODBY94kTx6Sl/dxYFf01FsjYJ2kwNAoq3vTCjjVh9UWGAVptBysQQETEpRFfsRBhrhCXe+IRYYhAV0Ibsc5qQ5HSYl1aGKnsX6UIZa+5U6qs2yRZ2m64f6TAXMmq7QAX+k1sHpy+AvbNk2vcG/VZUQTFk58TUSy9C0GATfrNdevOIlY4Ms22T9tKExDfObc4hm+HfjszcUDUEsDBBQAAAAIAJdWRl00Sf+yRAEAADkDAAARAAAAd29yZC9kb2N1bWVudC54bWzNks9LwzAUx/+VkrtLN4aM0nY3zx70D4ht3AZtEpLaOk9TkF2m3nQIgjhhl1U9KOi2/8b+0NP+BdNVGROKzpOXvIT3fd/3SfL0+r7rKD7mokWJAcolFSiYWNRukYYBtrc21mpAER4iNnIowQZoYwHqph5oNrX2XEw8RRoQoQUGaHoe0yAUVhO7SJQow0Tmdil3kSePvAEDym3GqYWFkP6uAyuqug5d1CIgs9yhdjuLbL5s8izwPIgDJdB85BigqgJo6vAzAxfCX6gDbY6rCYYseRfGscDcx8BMrrvvN/3Z9DIa9+KTw3RwHN8O4/Aiq/Ty+rzXj3iV6ip4y+pivHCQnHfT0Sh67iR3T7NpBilRJedr5+jfQY573yDlPp0M00n4J9pybRXaZXUhbfxwJv/37f4x6Z9KvOjlqvAx4ddkwsXUmx9QSwMEFAAAAAgAl1ZGXWhYUeymAAAA8AAAAA8AAAB3b3JkL3N0eWxlcy54bWxdjssOgjAQRX+lmb0MEmMMobAxrl3oBzQwPJI+SKdS8esFgwtdnty5505RPY0WE3kenJWwT1IQZGvXDLaTcL9ddicQHJRtlHaWJMzEUJVFzDnMmlgsdct5lNCHMOaIXPdkFCduJLtkrfNGhQV9h9H5ZvSuJubFbjRmaXpEowYLq7Bx9Zla9dCBV/RXv+FGn9GXiPmktITsAFgWuCX4e49/Nvy+W74BUEsBAhQAFAAAAAgAl1ZGXfBKwn/4AAAALAIAABMAAAAAAAAAAAAAAIABAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAAUAAAACACXVkZdYOY1aL4AAACtAQAACwAAAAAAAAAAAAAAgAEpAQAAX3JlbHMvLnJlbHNQSwECFAAUAAAACACXVkZdNEn/skQBAAA5AwAAEQAAAAAAAAAAAAAAgAEQAgAAd29yZC9kb2N1bWVudC54bWxQSwECFAAUAAAACACXVkZdaFhR7KYAAADwAAAADwAAAAAAAAAAAAAAgAGDAwAAd29yZC9zdHlsZXMueG1sUEsFBgAAAAAEAAQA9gAAAFYEAAAAAA==";
+var SIZED_PDF_B64 = "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxOTcgPj4Kc3RyZWFtCkJUIC9GMSAyNCBUZiA3MiA3MDAgVGQgKEJpZyBUaXRsZSBIZXJlKSBUaiBFVApCVCAvRjEgMTIgVGYgNzIgNjYwIFRkIChCb2R5IHRleHQgbGluZSBvbmUpIFRqIEVUCkJUIC9GMSAxMiBUZiA3MiA2NDAgVGQgKEJvZHkgdGV4dCBsaW5lIHR3bykgVGogRVQKQlQgL0YxIDggVGYgNzIgNjEwIFRkIChGb290bm90ZSBzbWFsbCBwcmludCkgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAwMDAwMDA0ODggMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo1NTgKJSVFT0YK";
+function pctsOf(text){
+  return text.split("\n").filter(function(l){return l.trim();}).map(function(l){
+    var m = l.match(/^\u0001F(\d+)\u0001/); return m ? Number(m[1]) : 0;
+  });
+}
+(async function(){
+  var out = document.getElementById('out');
+  var res = { docxSizes: null, pdfSizes: null, docxClean: null, pdfClean: null, errors: [] };
+  try {
+    var df = b64ToFile(SIZED_DOCX_B64, 'sized.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    var t1 = await InkImport.capture([df]);
+    res.docxSizes = pctsOf(t1);
+    var c1 = t1.replace(/\u0001F\d+\u0001/g, "");
+    res.docxClean = (c1.indexOf('\u0001') < 0) && (c1.indexOf('标题：二十磅大字') >= 0) && (c1.indexOf('小字说明，九磅。') >= 0);
+
+    var pf = b64ToFile(SIZED_PDF_B64, 'sized.pdf', 'application/pdf');
+    var t2 = await InkImport.capture([pf]);
+    res.pdfSizes = pctsOf(t2);
+    var c2 = t2.replace(/\u0001F\d+\u0001/g, "");
+    res.pdfClean = (c2.indexOf('\u0001') < 0) && (c2.indexOf('Big Title Here') >= 0) && (c2.indexOf('Footnote small print') >= 0);
+
+    var ok = true;
+    if (!res.docxSizes || res.docxSizes.length !== 4) ok = false;
+    else {
+      if (Math.abs(res.docxSizes[0]-167) > 5) ok = false;
+      if (Math.abs(res.docxSizes[1]-100) > 5 || Math.abs(res.docxSizes[2]-100) > 5) ok = false;
+      if (Math.abs(res.docxSizes[3]-75) > 5) ok = false;
+      if (!(res.docxSizes[0] > res.docxSizes[1] && res.docxSizes[1] > res.docxSizes[3])) ok = false;
+    }
+    if (!res.pdfSizes || res.pdfSizes.length !== 4) ok = false;
+    else {
+      if (Math.abs(res.pdfSizes[0]-200) > 8) ok = false;
+      if (Math.abs(res.pdfSizes[1]-100) > 5 || Math.abs(res.pdfSizes[2]-100) > 5) ok = false;
+      if (Math.abs(res.pdfSizes[3]-67) > 8) ok = false;
+      if (!(res.pdfSizes[0] > res.pdfSizes[1] && res.pdfSizes[1] > res.pdfSizes[3])) ok = false;
+    }
+    if (!res.docxClean || !res.pdfClean) ok = false;
+    res.pass = ok;
+  } catch (e) {
+    res.errors.push(String(e && e.stack || e).slice(0, 300));
+    res.pass = false;
+  }
+  var pre = document.createElement('pre'); pre.id = 'sizefixture';
+  pre.textContent = 'SIZEFIX:' + JSON.stringify(res);
+  out.parentNode.appendChild(pre);
+})();

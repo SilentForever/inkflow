@@ -28,14 +28,19 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 ## 左栏（一体化导入面板 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
 - 第 1 行 `.tb-row`：中文字体下拉 + 英文字体下拉（`.font-select` 用 `flex:1 1 108px` 等宽并排）+ 字号数字框 + `px`。
-- 第 2 行 `.tb-row`：B/I/U（`.fmt-btn`，带边框/圆角/`aria-pressed` 选中态）· `.tool-sep` · 字色 · `.tool-sep` · 缩放滑块。（早期右端的 `[单篇|批量]` 手动开关**已移除**——改由文件数自动分流。）
+- 第 2 行 `.tb-row`：字色 · `.tool-sep` · 缩放滑块 · `.tool-sep` · 「**按原文大小**」开关 `#sizeFromSource`（`.sfs-toggle`，默认开）。**B/I/U 按钮已随编辑器一并移除**（它们只作用于编辑器，导入内容不带加粗/斜体/下划线）。
 - 外层 `.input-toolbar{flex-direction:column;overflow:hidden}`，每行 `.tb-row{flex-wrap:wrap}`。**切勿再把这些控件塞进单个不可换行的 flex 组**（历史坑：总宽 ≈600px > 左栏 ≈477px → 横向溢出到中栏）。
-工具栏下方是 `[导入|编辑]` 页签：**默认停在「导入」页**，该页整块是**一体化导入面板** `#dropCard`（点卡片任意位置弹文件选择（多选）；`#dropzone` 整列可拖入；卡片下方「粘贴文本 / 识别图片」两个文字入口）。
-- **单篇 / 批量由文件数自动分流，无手动开关**：`InkImport.handleFiles` 里 `multi = files.length>1`。单篇（1 个文件）→ 写入编辑器并自动切到「编辑」页；多篇（≥2）→ 逐篇入队，**批量队列 `#queuePanel` 就地展开在导入页**（卡片下方，自动生成「批量队列 · 已导入 N 篇」小标题），留在导入页。点「编辑」页签即 `InkQueue.clearAll()` 清空队列、回到单篇。
-- 面板可见性统一由 `js/app.js` 的 `syncPanels()` 单点控制 `hidden`（导入页 / 编辑器 `#editorWrap` / 队列 `#queuePanel`），避免作者样式的 `display` 覆盖 `[hidden]`。队列的**挂载位置**（`parentNode`）与显隐也由 `syncPanels()` 决定：空队列不占位。
+**左栏只有「导入」一种输入方式**（「编辑」页签与单篇编辑器已移除）：整块是**一体化导入面板** `#dropCard`（点卡片任意位置弹文件选择（多选）；`#dropzone` 整列可拖入；卡片下方「粘贴文本 / 识别图片」两个文字入口）。编辑器位置换成只读状态栏 `.doc-info`（`#counts`）。
+- **单篇 / 批量由文件数自动分流，无手动开关**：`InkImport.handleFiles` 里 `multi = files.length>1`。单篇（1 个文件）→ `onItem` 直接 `loadDocText()` 渲染到右侧；多篇（≥2）→ 逐篇入队，**批量队列 `#queuePanel` 就地展开在导入页**（卡片下方，自动生成「批量队列 · 已导入 N 篇」小标题）。
+- 面板可见性统一由 `js/app.js` 的 `syncPanels()` 单点控制 `hidden`（导入页 + 内联队列 `#queuePanel`），避免作者样式的 `display` 覆盖 `[hidden]`。队列的**挂载位置**（`parentNode`）与显隐也由 `syncPanels()` 决定：空队列不占位。
 - **字号是 `<input type="number">` 数字框**（12–96），由 `bindFontSize()` 绑定，**不是滑杆**。
 - 旧的「只读预览」视图与三个并排导入按钮均已删除。
 - 测试文件 `tests/e2e.html` 内嵌了一份**左栏 + 右栏 DOM 副本**：改 DOM 结构时必须同步改它，否则 e2e 与真实页面不一致。
+
+## 输入与字号（唯一输入源 = `state.docText`）
+- **没有编辑器**：`js/app.js` 用 `state.docText`（字符串）作唯一文档来源，`loadDocText(text)` 写入并 `scheduleRender(true)`；`clearAll`/`loadDemo` 都走它。
+- **按原文大小转写**：导入器把「块字号 ÷ 文档正文字号 × 100」编码成块首标记 `\u0001F<pct>\u0001`（`InkParser.szMark`）；`InkParser.parse` 用 `/^\u0001F(\d+)\u0001/` 剥离并挂到块 `px`；`renderer.layoutBlocks` 用 `factor(b)=clamp(px/100,.5,2.4)` 定块字号，**行高/基线/内边距随 `ln.size` 缩放**（`metricsOf`/`lineHeightFor` 以 `ln.size` 为基准，勿再写死 `s.fontSize`）。开关 `state.sizeFromSource===false` 时 `doRender` 把块 `px` 清零 → 统一字号。
+- **字号来源**：DOCX 解 ZIP 读 `word/document.xml` 的 `w:sz`（半磅）+ `styles.xml`；PDF 用 pdf.js `getTextContent()` 的 `transform[3]` 按行取最大字号；两者都以**全文字号众数当正文**再按比例打标记。Markdown/TXT 无字号信息。
 
 ## 右栏（预览列）
 头部 `col-head` 只留 **状态徽标 `#busy` + 自动开关**；动作按钮全在底部 `.preview-foot`（翻页 `.pager` + `#regenerate` + `#exportPng` + `#exportPdf`）。画布区 `.preview-stage` 用点阵网格底纹；空状态 `.preview-empty` 分级（`.pe-ico/.pe-title/.pe-sub/.pe-hint`）。

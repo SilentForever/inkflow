@@ -17,7 +17,7 @@
   function hashSettings(s) {
     var keys = ["pageSize","paper","fontKeyCJK","fontKeyLat","fontSize","lineHeight","letterSpacing",
       "hand","jitter","rotateDeg","sizeVary","baselineDrift","formulaHand","formulaScale",
-      "inkColor","textColor","inkAmount","inkVary","margin","bold","italic","underline","textScale",
+      "inkColor","textColor","inkAmount","inkVary","margin","bold","italic","underline","textScale","sizeFromSource",
       "showHeader","headerText","showDate","showFooter","showTotalPages","seed"];
     var parts = [];
     for (var i = 0; i < keys.length; i++) parts.push(keys[i] + "=" + s[keys[i]]);
