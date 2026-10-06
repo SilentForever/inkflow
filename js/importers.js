@@ -69,6 +69,12 @@
     return out;
   }
 
+  /* 分页标记：多页 PDF/Word 每页首个块前写入 \u0001PG<页码>\u0001，parser 剥离后挂到块上，
+     右侧转写据此「按原文档页码排序布局」 */
+  function pgMark(n) {
+    return (global.InkParser && global.InkParser.pgMark) ? global.InkParser.pgMark(n) : ("\u0001PG" + n + "\u0001");
+  }
+
   /* 字号标记：把「相对文档正文字号的百分比」写进块首（parser 会剥离并挂到块上） */
   function mark(pct) {
     var v = Math.round(pct);
@@ -144,12 +150,21 @@
     }
     /* 正文字号 = 出现最多的字号；每行按相对大小打标记，实现「按原文字号转写」 */
     var body = bodySizeOf(allH);
-    var out = [];
+    var pageTexts = [];
     for (var q = 0; q < pageLines.length; q++) {
-      out.push(pageLines[q].map(function (ln) {
+      pageTexts.push(pageLines[q].map(function (ln) {
         if (!ln.text) return "";
         return mark(ln.h / body * 100) + ln.text;
       }).join("\n"));
+    }
+    /* 多页 PDF：每页首个块前写入分页标记 → 右侧转写按原页码排序布局；
+       单页文档不加标记，仍走连续分页（与旧版一致）。 */
+    var contentN = pageTexts.filter(function (t) { return t.trim(); }).length;
+    var multi = contentN > 1;
+    var out = [];
+    for (var q2 = 0; q2 < pageTexts.length; q2++) {
+      var pt = pageTexts[q2];
+      out.push((multi && pt.trim()) ? (pgMark(q2 + 1) + pt) : pt);
     }
     return out.join("\n\n");
   }
@@ -192,18 +207,28 @@
       var txt = "";
       var tre = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gi, tm;
       while ((tm = tre.exec(inner))) txt += xmlUnescape(tm[1]);
-      paras.push({ text: txt, half: half, list: /<w:numPr\b/i.test(pPr) });
+      /* 分页：显式分页符（<w:br w:type="page"/>）、渲染期分页、或段前分页 */
+      var pageBreak = /<w:br\b[^>]*\bw:type="page"/i.test(inner) || /<w:lastRenderedPageBreak\b/i.test(inner) || /<w:pageBreakBefore\b/i.test(pPr);
+      paras.push({ text: txt, half: half, list: /<w:numPr\b/i.test(pPr), pageBreak: pageBreak });
     }
     var sizes = [];
     for (var i = 0; i < paras.length; i++) if (paras[i].text.trim()) sizes.push(paras[i].half ? paras[i].half / 2 : (defHalf ? defHalf / 2 : 12));
     var body = bodySizeOf(sizes);
+    /* 是否含分页（多页 Word）；无分页则不加标记，保持与旧版一致 */
+    var multi = false;
+    for (var q = 0; q < paras.length; q++) if (paras[q].pageBreak) { multi = true; break; }
     var parts = [];
+    var page = 1, pageFirst = true;
     for (var j = 0; j < paras.length; j++) {
       var p = paras[j];
+      /* 遇到分页 → 进入新一页；下一页的首个非空段落带上分页标记 */
+      if (p.pageBreak) { if (parts.length) page++; pageFirst = true; }
       var t = p.text.replace(/\s+/g, " ").trim();
       if (!t) continue;
       var pt = p.half ? p.half / 2 : body;
-      parts.push(mark(body ? pt / body * 100 : 100) + (p.list ? "- " : "") + t);
+      var prefix = (multi && pageFirst) ? pgMark(page) : "";
+      pageFirst = false;
+      parts.push(prefix + mark(body ? pt / body * 100 : 100) + (p.list ? "- " : "") + t);
     }
     return parts.join("\n\n");
   }

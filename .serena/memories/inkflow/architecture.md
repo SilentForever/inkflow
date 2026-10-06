@@ -28,7 +28,7 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 ## 左栏（导入面板：空态卡片 ↔ 文档列表 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
 - 第 1 行 `.tb-row`：**中文**字体下拉 + **英文**字体下拉（每个 `.font-select` 包在 `.font-field` 里、前面有可见的 `.font-lbl`「中文 / 英文」小标签——**两个下拉必须带可见标签**，不能只靠位置/`aria-label` 区分）+ 字号数字框 + `px`。
-- 第 2 行 `.tb-row`：字色 · `.tool-sep` · 缩放滑块 · `.tool-sep` · 「**按原文大小**」开关 `#sizeFromSource`（`.sfs-toggle`，默认开）。**B/I/U 按钮已随编辑器一并移除**（它们只作用于编辑器，导入内容不带加粗/斜体/下划线）。
+- 第 2 行 `.tb-row`：字色 · `.tool-sep` · 缩放滑块 · `.tool-sep` · 「**按原文大小**」开关 `#sizeFromSource`（`.sfs-toggle`，默认开） · `.tool-sep` · 「**按原页分页**」开关 `#pageAnchor`（`.sfs-toggle`，默认开）。**B/I/U 按钮已随编辑器一并移除**（它们只作用于编辑器，导入内容不带加粗/斜体/下划线）。
 - 外层 `.input-toolbar{flex-direction:column;overflow:hidden}`，每行 `.tb-row{flex-wrap:wrap}`。**切勿再把这些控件塞进单个不可换行的 flex 组**（历史坑：总宽 ≈600px > 左栏 ≈477px → 横向溢出到中栏）。
 **左栏只有「导入」一种输入方式**（「编辑」页签与单篇编辑器已移除），面板**随有无文档自动切换两种形态**：
 - **空态**：只显示 `#dropCard`（虚线拖放卡片；点它任意位置弹文件选择（多选）；卡片下方「粘贴文本 / 识别图片」两个文字入口）；列表 `#queuePanel` 隐藏。
@@ -43,6 +43,13 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 - **没有编辑器**：`js/app.js` 用 `state.docText`（字符串）作唯一文档来源，`loadDocText(text)` 写入并 `scheduleRender(true)`；`clearAll`/`loadDemo` 都走它。
 - **按原文大小转写**：导入器把「块字号 ÷ 文档正文字号 × 100」编码成块首标记 `\u0001F<pct>\u0001`（`InkParser.szMark`）；`InkParser.parse` 用 `/^\u0001F(\d+)\u0001/` 剥离并挂到块 `px`；`renderer.layoutBlocks` 用 `factor(b)=clamp(px/100,.5,2.4)` 定块字号，**行高/基线/内边距随 `ln.size` 缩放**（`metricsOf`/`lineHeightFor` 以 `ln.size` 为基准，勿再写死 `s.fontSize`）。开关 `state.sizeFromSource===false` 时 `doRender` 把块 `px` 清零 → 统一字号。
 - **字号来源**：DOCX 解 ZIP 读 `word/document.xml` 的 `w:sz`（半磅）+ `styles.xml`；PDF 用 pdf.js `getTextContent()` 的 `transform[3]` 按行取最大字号；两者都以**全文字号众数当正文**再按比例打标记。Markdown/TXT 无字号信息。
+
+## 多页 PDF / Word：按原页分页（页码锚定）
+- 需求：多页 PDF/Word 导入后，右侧转写须**按原文档页码排序布局**，不把多页压成连续流。
+- **同一套隐藏标记机制**新增**分页标记** `\u0001PG<n>\u0001`（`InkParser.pgMark(n)`）：导入器在**每页首个块前**写入；`InkParser.parse` 剥离后挂到块的 `pageStart`（1 基；0=无锚点）。**仅多页文档写标记，单页/Markdown/TXT 不写 → 保持旧行为**。
+- `renderer.layoutBlocks`：把当前块的 `pageStart` 存到 `pageSt` 并随 `pushLine` 传到每行；`paginate(lines,s)` 遇 `ln.pageStart>0`（且 `s.pageAnchor!==false`）**先换新纸张再落笔**；`drawFurniture(...,srcPage)` 页码取该页首行的 `pageStart`（锚定原页号，否则用顺序页码）。
+- **Word 分页**依据：`<w:br w:type="page"/>`、`<w:lastRenderedPageBreak/>`（Word 渲染分页）、段属性 `<w:pageBreakBefore/>`；**PDF 分页**依据 pdf.js 真实页边界（逐页 `getTextContent`）。计数存于 `paras[i].page`，文本用 `\n\n` 连接。
+- 开关 `state.pageAnchor`（默认开）→ `toSettings()` → `paginate`；`hashSettings` 纳入 `pageAnchor`。队列项带 `pageCount`（`InkParser.pageMarks(text).length`），列表显示「（原文 N 页）」。
 
 ## 右栏（预览列）
 头部 `col-head` 只留 **状态徽标 `#busy` + 自动开关**；动作按钮全在底部 `.preview-foot`（翻页 `.pager` + `#regenerate` + `#exportPng` + `#exportPdf`）。画布区 `.preview-stage` 用点阵网格底纹；空状态 `.preview-empty` 分级（`.pe-ico/.pe-title/.pe-sub/.pe-hint`）。

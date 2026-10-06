@@ -77,6 +77,7 @@
   var state = {
     docText: "",              // 导入的文档原文（唯一输入来源；编辑器已移除）
     sizeFromSource: true,     // 按原文（PDF/Word）字号转写（解析器用块首标记承载）
+    pageAnchor: true,         // 多页 PDF/Word：按原文档页码排序布局（块首分页标记承载）
     pageSize: "a4",
     paper: "ruled",
     fontKey: "zenkurenaido",
@@ -122,6 +123,7 @@
       bold: state.bold, italic: state.italic, underline: state.underline,
       textColor: state.textColor, textScale: state.textScale,
       sizeFromSource: state.sizeFromSource,
+      pageAnchor: state.pageAnchor,
       marginTop: m, marginBottom: Math.round(m * 0.9), marginLeft: m, marginRight: Math.round(m * 0.8),
       showHeader: state.showHeader, headerText: state.headerText,
       showDate: state.showDate, dateText: new Date().toLocaleDateString("zh-CN"),
@@ -608,10 +610,11 @@
 
         var st = document.createElement("span");
         st.className = "q-status " + it.status;
-        st.textContent = it.status === "done" ? ("✓ 已完成 " + (it.pages ? it.pages.length : 0) + " 页")
+        var pg = (it.pageCount > 1) ? ("（原文 " + it.pageCount + " 页）") : "";
+        st.textContent = it.status === "done" ? ("✓ 已完成 " + (it.pages ? it.pages.length : 0) + " 页" + pg)
           : it.status === "rendering" ? "⟳ 转写中"
           : it.status === "error" ? ("✕ " + (it.error || "失败").slice(0, 14))
-          : "○ 待转写";
+          : ("○ 待转写" + pg);
         li.appendChild(st);
 
         var del = document.createElement("button");
@@ -682,6 +685,13 @@
     if (sfs) {
       sfs.checked = state.sizeFromSource !== false;
       sfs.addEventListener("change", function () { state.sizeFromSource = sfs.checked; scheduleRender(true); });
+    }
+
+    /* 按原页分页（默认开）：多页 PDF/Word 关闭后内容连续排布 */
+    var panchor = $("pageAnchor");
+    if (panchor) {
+      panchor.checked = state.pageAnchor !== false;
+      panchor.addEventListener("change", function () { state.pageAnchor = panchor.checked; scheduleRender(true); });
     }
 
     var auto = $("autoRender");

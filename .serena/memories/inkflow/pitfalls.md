@@ -19,6 +19,8 @@
 
 ## 渲染 / 字号
 - **行高/基线/内边距必须随块字号缩放**：`metricsOf`/`lineHeightFor` 一度写死 `s.fontSize`，导致「按原文大小」时大字块仍按正文字号算行高 → 行与行重叠。正解：以 `ln.size`（该行字号）为基准。
+- **多页分页锚点须「行级携带、分页处消费」**：`pageStart` 不能只在块上——`paginate` 只拿到行数组。正解：`layoutBlocks` 把当前块 `pageStart` 存到 `pageSt` 并随每行 `pushLine` 带上；`paginate` 遇 `ln.pageStart>0` 且 `cur` 非空就 `flush` 换新纸张。**「每页首块」而非「每页首行」是关键**：若空行/页首也带标记，会在页顶多推一张空纸。
+- **单页文档不要写分页标记**：只在 `pages>1` 时写 `\u0001PG<n>\u0001`，否则单页/普通文档的连续分页行为被改变（回归风险）。
 - **测试 harness 直接调用渲染子函数（`layoutBlocks`/`paginate`）时，必须自己补全 `render()` 才会设置的派生字段**（`pageWidth/pageHeight/lineHeightPx/margin*` 等）。否则 `lineHeightFor` 返回 `NaN` → `maxBottom=0` → 分页检查**形同虚设却永远"通过"**（真实浏览器里因 settings 由 `render()` 补全而正常）。这类"假绿"极危险：改 `lineHeightFor` 后它才暴露成真失败。
 - **公式墨色/字号派生**见 `mem:inkflow/architecture`。
 

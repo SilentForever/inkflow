@@ -203,6 +203,35 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: '开=' + JSON.stringify(keys) + ' 关=' + JSON.stringify(Object.keys(sizes2)) };
   });
 
+  await t('解析器：分页标记剥离并挂载（按原页分页）', function () {
+    var pg = window.InkParser.pgMark;
+    var src = pg(1) + '第一页甲\n\n' + pg(2) + '第二页乙\n\n' + pg(3) + '第三页丙';
+    var marks = window.InkParser.pageMarks(src);
+    assert(marks.join(',') === '1,2,3', '分页标记序列错误: ' + marks.join(','));
+    var b = window.InkParser.parse(src);
+    var ps = b.filter(function (x) { return x.type !== 'blank'; }).map(function (x) { return x.pageStart; });
+    assert(ps.length === 3 && ps[0] === 1 && ps[1] === 2 && ps[2] === 3, 'pageStart 挂载错误: ' + JSON.stringify(ps));
+    var txt = b.map(function (x) { return x.text || ''; }).join('');
+    assert(txt.indexOf('\u0001') < 0, '文本残留分页标记');
+    /* 无标记文档不受影响 */
+    var b2 = window.InkParser.parse('普通文档\n\n第二段');
+    assert(b2.every(function (x) { return !x.pageStart; }), '无标记文档不该有 pageStart');
+    return { pass: true, detail: JSON.stringify(ps) };
+  });
+
+  await t('渲染：多页按原页码锚定分页（可关闭 → 连续排布）', async function () {
+    var pg = window.InkParser.pgMark;
+    /* 3 个原页、每页仅 2 行短内容：连续排布压成 1 页；锚定后应为 3 页 */
+    var src = pg(1) + '第一页 甲\n第一页 乙\n\n' + pg(2) + '第二页 丙\n第二页 丁\n\n' + pg(3) + '第三页 戊\n第三页 己';
+    var blocks = window.InkParser.parse(src);
+    var r1 = await window.InkRender.render(blocks, baseSettings({ pageAnchor: true }), {});
+    assert(r1.canvases.length === 3, '锚定后应 3 页，实际 ' + r1.canvases.length);
+    var blocks2 = window.InkParser.parse(src);
+    var r2 = await window.InkRender.render(blocks2, baseSettings({ pageAnchor: false }), {});
+    assert(r2.canvases.length === 1, '关闭锚定后应 1 页，实际 ' + r2.canvases.length);
+    return { pass: true, detail: '锚定=' + r1.canvases.length + ' 关闭=' + r2.canvases.length };
+  });
+
   /* ---------- 4. 确定性 / 种子 ---------- */
   function hashCanvas(cv) {
     var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;

@@ -17,11 +17,16 @@
   function hashSettings(s) {
     var keys = ["pageSize","paper","fontKeyCJK","fontKeyLat","fontSize","lineHeight","letterSpacing",
       "hand","jitter","rotateDeg","sizeVary","baselineDrift","formulaHand","formulaScale",
-      "inkColor","textColor","inkAmount","inkVary","margin","bold","italic","underline","textScale","sizeFromSource",
+      "inkColor","textColor","inkAmount","inkVary","margin","bold","italic","underline","textScale","sizeFromSource","pageAnchor",
       "showHeader","headerText","showDate","showFooter","showTotalPages","seed"];
     var parts = [];
     for (var i = 0; i < keys.length; i++) parts.push(keys[i] + "=" + s[keys[i]]);
     return U.hashString(parts.join("|")) >>> 0;
+  }
+
+  function pageCountOf(text) {
+    try { return (global.InkParser && global.InkParser.pageMarks) ? global.InkParser.pageMarks(text).length : 0; }
+    catch (e) { return 0; }
   }
 
   function add(name, kind, text) {
@@ -32,6 +37,7 @@
       text: text || "",
       status: text ? "pending" : "error",
       error: text ? "" : "未识别到内容",
+      pageCount: pageCountOf(text || ""),   // 原文档页数（多页 PDF/Word > 1）
       pages: null,
       settingsHash: 0,
       checked: true

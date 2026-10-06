@@ -83,6 +83,10 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
           <label class="checkline sfs-toggle" title="按 PDF / Word 原文的各级字号转写">
             <input type="checkbox" id="sizeFromSource" checked> 按原文大小
           </label>
+          <span class="tool-sep" aria-hidden="true"></span>
+          <label class="checkline sfs-toggle" title="多页 PDF / Word：右侧转写按原文档页码排序布局">
+            <input type="checkbox" id="pageAnchor" checked> 按原页分页
+          </label>
         </div>
       </div>
 
@@ -467,6 +471,7 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       if (!$("textColor")) throw new Error("缺字色控件");
       if (!$("fontCJK") || !$("fontLat")) throw new Error("缺字体下拉");
       if (!$("sizeFromSource")) throw new Error("缺「按原文大小」开关");
+      if (!$("pageAnchor")) throw new Error("缺「按原页分页」开关");
       /* 两个字体下拉必须各有可见的「中文 / 英文」标签，不能只靠位置区分 */
       function lblOf(sel){ var f = sel.closest(".font-field"); var l = f && f.querySelector(".font-lbl"); return l ? l.textContent.trim() : ""; }
       if (lblOf($("fontCJK")) !== "中文") throw new Error("中文字体下拉缺少可见「中文」标签");
@@ -553,6 +558,35 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       window.InkApp.loadDocText(window.InkSamples.equation);
       await sleep(1500);
       return "按原文大小 开/关 → 输出不同";
+    });
+
+    await t("分页：多页 PDF/Word 按原页码排序布局（锚定，可开关）", async function(){
+      var mk = window.InkParser.pgMark;
+      /* 3 个原页，每页仅 2 行短内容：连续排布会压成 1 页；锚定后应为 3 页 */
+      var doc = mk(1)+"第一页 内容甲\n第一页 内容乙\n\n" + mk(2)+"第二页 内容丙\n第二页 内容丁\n\n" + mk(3)+"第三页 内容戊\n第三页 内容己";
+      var marks = window.InkParser.pageMarks(doc);
+      if (marks.join(",") !== "1,2,3") throw new Error("分页标记序列异常：" + marks.join(","));
+      window.InkApp.state.pageAnchor = true;
+      window.InkApp.loadDocText(doc);
+      var cv0 = null;
+      for (var w=0; w<14; w++){ await sleep(500); cv0 = document.querySelector("canvas"); if (cv0 && inkOf(cv0)>10) break; }
+      /* 渲染页数：通过 pageInd 文本读取 "1 / N" */
+      var ind = ($("pageInd") ? $("pageInd").textContent : "");
+      var n1 = parseInt((ind.split("/")[1]||"0").trim(), 10);
+      if (n1 !== 3) throw new Error("锚定后应 3 页，实际 " + n1 + "（ind=" + ind + "）");
+      /* 关闭锚定 → 连续排布 → 1 页 */
+      window.InkApp.state.pageAnchor = false;
+      window.InkApp.loadDocText(doc);
+      await sleep(2000);
+      var ind2 = ($("pageInd") ? $("pageInd").textContent : "");
+      var n2 = parseInt((ind2.split("/")[1]||"0").trim(), 10);
+      if (n2 !== 1) throw new Error("关闭锚定后应 1 页，实际 " + n2 + "（ind=" + ind2 + "）");
+      /* 还原 */
+      window.InkApp.state.pageAnchor = true;
+      if ($("pageAnchor")) $("pageAnchor").checked = true;
+      window.InkApp.loadDocText(window.InkSamples.equation);
+      await sleep(1200);
+      return "锚定 3 页 / 关闭 1 页";
     });
 
     await t("交互：全部字体逐一渲染", async function(){

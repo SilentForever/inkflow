@@ -231,8 +231,11 @@
     var maxW = s.pageWidth - s.marginLeft - s.marginRight;
     var lines = [];
 
+    /* 当前块的页码锚点（1 基；0=无锚点）。导入多页 PDF/Word 时，每页首个块带 pageStart，
+       用于「按原文档页码排序布局」——分页器据此让新一页从新纸张顶部开始。 */
+    var pageStart = 0;
     function pushLine(tokens, kind, size, align, indent) {
-      lines.push({ tokens: tokens, kind: kind, size: size, align: align || "left", indent: indent || 0 });
+      lines.push({ tokens: tokens, kind: kind, size: size, align: align || "left", indent: indent || 0, pageStart: pageStart });
     }
 
     /* 中文避头尾：这些符号不能出现在行首 / 行尾 */
@@ -288,6 +291,7 @@
 
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
+      pageStart = b.pageStart || 0;   /* 每块切换页码锚点 */
       var fz = s.fontSize * factor(b);
       if (b.type === "blank") { pushLine([], "blank", fz, "left", 0); continue; }
       if (b.type === "hr") { pushLine([], "hr", fz, "left", 0); continue; }
@@ -377,14 +381,21 @@
     return Math.max(base, needed);
   }
 
-  /* ---------- 分页 ---------- */
+  /* ---------- 分页 ----------
+   * 两种模式：
+   *  1) 连续分页（默认）：内容顺序流，满了换页——Markdown/TXT/单页文档。
+   *  2) 按原页码锚定：导入多页 PDF/Word 时，每页首个块带 pageStart（1 基）；
+   *     遇到 pageStart 就「先换新纸张再落笔」，从而让右侧转写严格按原文档页码排序布局。
+   * 两种情况都在「一页装不下」时兜底换页，保证内容不丢。 */
   function paginate(lines, s) {
     var usable = s.pageHeight - s.marginTop - s.marginBottom;
     var pages = [], cur = [], y = 0;
     for (var i = 0; i < lines.length; i++) {
-      var lh = lineHeightFor(lines[i], s);
-      if (y + lh > usable && cur.length > 0) { pages.push(cur); cur = []; y = 0; }
-      cur.push(lines[i]); y += lh;
+      var ln = lines[i];
+      var lh = lineHeightFor(ln, s);
+      var forced = s.pageAnchor !== false && (ln.pageStart > 0) && (cur.length > 0 || pages.length > 0);
+      if ((forced || y + lh > usable) && cur.length > 0) { pages.push(cur); cur = []; y = 0; }
+      cur.push(ln); y += lh;
     }
     pages.push(cur);
     return pages;
@@ -545,7 +556,10 @@
         y += lh;
       }
 
-      drawFurniture(ctx, s, p, pages.length, rnd);
+      /* 该渲染页锚定到的原文档页码（多页 PDF/Word 时为 1 基；否则 0 → 用顺序页码） */
+      var srcPage = 0;
+      for (var q = 0; q < pages[p].length; q++) { if (pages[p][q].pageStart > 0) { srcPage = pages[p][q].pageStart; break; } }
+      drawFurniture(ctx, s, p, pages.length, rnd, srcPage);
       canvases.push(cv);
     }
 
@@ -616,7 +630,7 @@
     ctx.fillStyle = color;
   }
 
-  function drawFurniture(ctx, s, pageIdx, total, rnd) {
+  function drawFurniture(ctx, s, pageIdx, total, rnd, srcPage) {
     if (!s.showHeader && !s.showFooter) return;
     ctx.save();
     ctx.globalAlpha = U.clamp(s.inkAmount * 0.8, 0.1, 1);
@@ -634,7 +648,8 @@
     }
     if (s.showFooter) {
       ctx.textAlign = "center";
-      var label = String(pageIdx + 1);
+      /* 多页 PDF/Word：页码锚定到原文档页码；否则用顺序页码 */
+      var label = String(srcPage > 0 ? srcPage : (pageIdx + 1));
       if (s.showTotalPages) label += " / " + total;
       ctx.fillText(label, s.pageWidth / 2 + rnd.jitter(1.2), s.pageHeight - s.marginBottom * 0.42);
     }

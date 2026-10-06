@@ -56,6 +56,8 @@ function textFile(text, name) { return new File([text], name, { type: 'text/plai
 /* ================= 按原文大小：DOCX / PDF 字号提取回归 ================= */
 var SIZED_DOCX_B64 = "UEsDBBQAAAAIAJdWRl3wSsJ/+AAAACwCAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbK2Ru07DMBSGX8U6a5U4MCCEknbgMgJDeYAj+ySx8E0+bmneHqcpHVCBhdH+L98vu90cnBV7SmyC7+CqbkCQV0EbP3Twtn2qbkFwRq/RBk8dTMSwWbfbKRKLkvXcwZhzvJOS1UgOuQ6RfFH6kBzmckyDjKjecSB53TQ3UgWfyecqzx2wbh+ox53N4vFQrpcdiSyDuF+MM6sDjNEahbnocu/1N0p1ItQlefTwaCKvigHkRcKs/Aw45V7KwySjSbxiys/oikt+hKSlDmrnSrL+vebCztD3RtE5P7fFFBQxlxd3tj4rDo1f/bWD82SJ/3/F0vuFl8ffXn8CUEsDBBQAAAAIAJdWRl1g5jVovgAAAK0BAAALAAAAX3JlbHMvLnJlbHOtkE0LwjAMhv9Kyd117iAi63YRYVeZP6C02QdubWnqx/69BRWc7ODBY94kTx6Sl/dxYFf01FsjYJ2kwNAoq3vTCjjVh9UWGAVptBysQQETEpRFfsRBhrhCXe+IRYYhAV0Ibsc5qQ5HSYl1aGKnsX6UIZa+5U6qs2yRZ2m64f6TAXMmq7QAX+k1sHpy+AvbNk2vcG/VZUQTFk58TUSy9C0GATfrNdevOIlY4Ms22T9tKExDfObc4hm+HfjszcUDUEsDBBQAAAAIAJdWRl00Sf+yRAEAADkDAAARAAAAd29yZC9kb2N1bWVudC54bWzNks9LwzAUx/+VkrtLN4aM0nY3zx70D4ht3AZtEpLaOk9TkF2m3nQIgjhhl1U9KOi2/8b+0NP+BdNVGROKzpOXvIT3fd/3SfL0+r7rKD7mokWJAcolFSiYWNRukYYBtrc21mpAER4iNnIowQZoYwHqph5oNrX2XEw8RRoQoQUGaHoe0yAUVhO7SJQow0Tmdil3kSePvAEDym3GqYWFkP6uAyuqug5d1CIgs9yhdjuLbL5s8izwPIgDJdB85BigqgJo6vAzAxfCX6gDbY6rCYYseRfGscDcx8BMrrvvN/3Z9DIa9+KTw3RwHN8O4/Aiq/Ty+rzXj3iV6ip4y+pivHCQnHfT0Sh67iR3T7NpBilRJedr5+jfQY573yDlPp0M00n4J9pybRXaZXUhbfxwJv/37f4x6Z9KvOjlqvAx4ddkwsXUmx9QSwMEFAAAAAgAl1ZGXWhYUeymAAAA8AAAAA8AAAB3b3JkL3N0eWxlcy54bWxdjssOgjAQRX+lmb0MEmMMobAxrl3oBzQwPJI+SKdS8esFgwtdnty5505RPY0WE3kenJWwT1IQZGvXDLaTcL9ddicQHJRtlHaWJMzEUJVFzDnMmlgsdct5lNCHMOaIXPdkFCduJLtkrfNGhQV9h9H5ZvSuJubFbjRmaXpEowYLq7Bx9Zla9dCBV/RXv+FGn9GXiPmktITsAFgWuCX4e49/Nvy+W74BUEsBAhQAFAAAAAgAl1ZGXfBKwn/4AAAALAIAABMAAAAAAAAAAAAAAIABAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAAUAAAACACXVkZdYOY1aL4AAACtAQAACwAAAAAAAAAAAAAAgAEpAQAAX3JlbHMvLnJlbHNQSwECFAAUAAAACACXVkZdNEn/skQBAAA5AwAAEQAAAAAAAAAAAAAAgAEQAgAAd29yZC9kb2N1bWVudC54bWxQSwECFAAUAAAACACXVkZdaFhR7KYAAADwAAAADwAAAAAAAAAAAAAAgAGDAwAAd29yZC9zdHlsZXMueG1sUEsFBgAAAAAEAAQA9gAAAFYEAAAAAA==";
 var SIZED_PDF_B64 = "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxOTcgPj4Kc3RyZWFtCkJUIC9GMSAyNCBUZiA3MiA3MDAgVGQgKEJpZyBUaXRsZSBIZXJlKSBUaiBFVApCVCAvRjEgMTIgVGYgNzIgNjYwIFRkIChCb2R5IHRleHQgbGluZSBvbmUpIFRqIEVUCkJUIC9GMSAxMiBUZiA3MiA2NDAgVGQgKEJvZHkgdGV4dCBsaW5lIHR3bykgVGogRVQKQlQgL0YxIDggVGYgNzIgNjEwIFRkIChGb290bm90ZSBzbWFsbCBwcmludCkgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAwMDAwMDA0ODggMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo1NTgKJSVFT0YK";
+/* 多页 DOCX：第一页（标题+正文）→ 分页符 → 第二页（正文） */
+var MULTIPAGE_DOCX_B64 = "UEsDBBQAAAAIAHpmRl15bjPX6AAAAK0BAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbH1QyU7DMBD9FWuuKHHggBCK0wPLETiUDxjZk8SqN3nc0v49Tlt6QIXjzFv1+tXeO7GjzDYGBbdtB4KCjsaGScHn+rV5AMEFg0EXAyk4EMNq6NeHRCyqNrCCuZT0KCXrmTxyGxOFiowxeyz1zJNMqDc4kbzrunupYygUSlMWDxj6Zxpx64p42df3qUcmxyCeTsQlSwGm5KzGUnG5C+ZXSnNOaKvyyOHZJr6pBJBXExbk74Cz7r0Ok60h8YG5vKGvLPkVs5Em6q2vyvZ/mys94zhaTRf94pZy1MRcF/euvSAebfjpL49zD99QSwMEFAAAAAgAemZGXZv9N+qtAAAAKQEAAAsAAABfcmVscy8ucmVsc43POw7CMAwG4KtE3mlaBoRQ0y4IqSsqB7ASN61oHkrCo7cnAwNFDIy2f3+W6/ZpZnanECdnBVRFCYysdGqyWsClP232wGJCq3B2lgQsFKFt6jPNmPJKHCcfWTZsFDCm5A+cRzmSwVg4TzZPBhcMplwGzT3KK2ri27Lc8fBpwNpknRIQOlUB6xdP/9huGCZJRydvhmz6ceIrkWUMmpKAhwuKq3e7yCzwpuarF5sXUEsDBBQAAAAIAHpmRl2FSg658gAAAJABAAARAAAAd29yZC9kb2N1bWVudC54bWyFUD1PwzAQ/SvW7fRCkRCK4nRjZoAf4MYmjRT7LNs0hIkFujAjRj7WwoYE/B5a1H+BE6AMSHS5p9O9e+/dZaNTXbOpcr4iw2F7kABTpiBZmZLD0eH+1h4wH4SRoiajOLTKwyjPmlRScaKVCSwKGJ82HCYh2BTRFxOlhR+QVSbOjslpEWLrSmzISeuoUN5HfV3jMEl2UYvKQCc5Jtl2aPty4DrwZ6xJp6LmsDMEzDNcT/oS8o/5/P3lfHX3vLydre5vOkLoae6LvBb8w398WF7PFpcXi6fXDVtjF0OE1sb7rSjVd45/DN6uNhvgz8H4+8z8E1BLAQIUABQAAAAIAHpmRl15bjPX6AAAAK0BAAATAAAAAAAAAAAAAACAAQAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAhQAFAAAAAgAemZGXZv9N+qtAAAAKQEAAAsAAAAAAAAAAAAAAIABGQEAAF9yZWxzLy5yZWxzUEsBAhQAFAAAAAgAemZGXYVKDrnyAAAAkAEAABEAAAAAAAAAAAAAAIAB7wEAAHdvcmQvZG9jdW1lbnQueG1sUEsFBgAAAAADAAMAuQAAABADAAAAAA==";
 function pctsOf(text){
   return text.split("\n").filter(function(l){return l.trim();}).map(function(l){
     var m = l.match(/^\u0001F(\d+)\u0001/); return m ? Number(m[1]) : 0;
@@ -101,4 +103,24 @@ function pctsOf(text){
   var pre = document.createElement('pre'); pre.id = 'sizefixture';
   pre.textContent = 'SIZEFIX:' + JSON.stringify(res);
   out.parentNode.appendChild(pre);
+})();
+
+/* ================= 按原页分页：多页 DOCX 分页标记回归 ================= */
+(async function(){
+  var out = document.getElementById('out');
+  var res = { docxPages: null, clean: null, errors: [] };
+  try {
+    var f = b64ToFile(MULTIPAGE_DOCX_B64, 'multi.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    var t = await InkImport.capture([f]);
+    res.docxPages = (window.InkParser && window.InkParser.pageMarks) ? window.InkParser.pageMarks(t) : null;
+    var c = t.replace(/\u0001PG\d+\u0001/g, "").replace(/\u0001F\d+\u0001/g, "");
+    res.clean = (c.indexOf('\u0001') < 0) && (c.indexOf('第一页标题') >= 0) && (c.indexOf('第二页正文内容') >= 0);
+    var ok = true;
+    if (!res.docxPages || res.docxPages.join(',') !== '1,2') ok = false;
+    if (!res.clean) ok = false;
+    res.pass = ok;
+  } catch (e) { res.errors.push(String(e && e.stack || e).slice(0, 300)); res.pass = false; }
+  var pre2 = document.createElement('pre'); pre2.id = 'pgfixture';
+  pre2.textContent = 'PGFIX:' + JSON.stringify(res);
+  out.parentNode.appendChild(pre2);
 })();
