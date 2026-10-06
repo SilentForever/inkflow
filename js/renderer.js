@@ -21,8 +21,7 @@
     liujianmaocao:{ label: "刘建毛草 狂草",    css: '"LiuJianMaoCao", "KaiTi", cursive',     cjk: true, lang: "cjk", family: "LiuJianMaoCao" },
     kai:          { label: "系统楷体",         css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk", family: "KaiTi", sys: true },
     /* ---------- 中文：系统自带（无需下载，随系统即时可用） ---------- */
-    stxingkai:    { label: "华文行楷（系统）",  css: '"华文行楷", "STXingkai", "KaiTi", cursive', cjk: true, lang: "cjk", family: "华文行楷", sys: true },
-    sysink:       { label: "Ink Free 手写（系统）", css: '"Ink Free", "Segoe Print", "KaiTi", cursive', cjk: true, lang: "cjk", family: "Ink Free", sys: true },
+    stxingkai:    { label: "华文行楷（系统）",  css: '"STXingkai", "华文行楷", "KaiTi", cursive', cjk: true, lang: "cjk", family: "STXingkai", sys: true },
     /* ---------- 英文手写 ---------- */
     caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat", family: "Caveat" },
     patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat", family: "Patrick Hand" },
@@ -37,7 +36,8 @@
     segoescript:  { label: "Segoe Script 手写（系统）", css: '"Segoe Script", cursive', cjk: false, lang: "lat", family: "Segoe Script", sys: true },
     segoeprint:   { label: "Segoe Print 打印（系统）",  css: '"Segoe Print", cursive',  cjk: false, lang: "lat", family: "Segoe Print", sys: true },
     comic:        { label: "Comic 漫画（系统）",        css: '"Comic Sans MS", cursive', cjk: false, lang: "lat", family: "Comic Sans MS", sys: true },
-    gabriola:     { label: "Gabriola 花体（系统）",     css: '"Gabriola", cursive',     cjk: false, lang: "lat", family: "Gabriola", sys: true }
+    gabriola:     { label: "Gabriola 花体（系统）",     css: '"Gabriola", cursive',     cjk: false, lang: "lat", family: "Gabriola", sys: true },
+    sysink:       { label: "Ink Free 手写（系统）",     css: '"Ink Free", "Segoe Print", cursive', cjk: false, lang: "lat", family: "Ink Free", sys: true }
   };
 
   /* 允许在运行时挂载用户自带的字体 */
@@ -134,15 +134,40 @@
 
   /* ---------- 公式字形字体链 ----------
    * 公式里的数字与符号也要写成手写体。顺序：
-   *   1) 当前正文字体  2) Zen Kurenaido（圆珠笔手写，符号覆盖好，专职兜底）  3) 其余中文手写体
-   * 都不含该字符时，mathrender 会保留 MathJax 原字形（内容绝不丢失）。 */
-  var MATH_FALLBACK = ["MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
+   *   1) 当前**英文**字体（数字/拉丁字形优先用手写英文字体）
+   *   2) 当前**中文**字体（公式里的中文用中文字体）
+   *   3) 拉丁手写兜底  4) 中文手写兜底
+   * 都不含该字符时，mathrender 会保留 MathJax 原字形（内容绝不丢失）。
+   * 注意：早期版本只挂中文字体链，导致「换英文字体时公式纹丝不动」。 */
+  var LATIN_FALLBACK = ["Caveat", "Patrick Hand", "Indie Flower", "Kalam", "Shadows Into Light", "Architects Daughter", "Gloria Hallelujah", "Reenie Beanie", "Rock Salt"];
+  var CJK_FALLBACK = ["MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
   function mathFontsOf(s) {
-    var cur = (FONTS[s.fontKeyCJK || s.fontKey] || {}).family;
+    var cjkFam = (FONTS[s.fontKeyCJK || s.fontKey] || {}).family;
+    var latFam = (FONTS[s.fontKeyLat || s.fontKey] || {}).family;
     var list = [];
-    if (cur) list.push(cur);
-    for (var i = 0; i < MATH_FALLBACK.length; i++) if (MATH_FALLBACK[i] !== cur) list.push(MATH_FALLBACK[i]);
+    function add(f) { if (f && list.indexOf(f) < 0) list.push(f); }
+    add(latFam);   /* 数字 / 拉丁：优先英文字体 */
+    add(cjkFam);   /* 中文：用中文字体 */
+    for (var i = 0; i < LATIN_FALLBACK.length; i++) add(LATIN_FALLBACK[i]);
+    for (var j = 0; j < CJK_FALLBACK.length; j++) add(CJK_FALLBACK[j]);
     return list;
+  }
+
+  /* ---------- 字体可用性探测 ----------
+   * 某些"系统字体"（如 华文行楷 / Segoe Script）并非每台机器都装了。
+   * 没装时浏览器会静默回退到邻近字体，用户看到的就是"选了没反应"。
+   * 原理：把目标族名与两个通用族名并排测量同一串文本；
+   *      若宽度与两个通用族都完全一致，说明该族名被忽略（未安装）。 */
+  function fontAvailable(family) {
+    if (!family) return false;
+    try {
+      var c = measurer();
+      var probe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\u6c38\u548c\u6d4b\u8bd5\u4e2d\u6587";
+      function w(f) { c.font = "64px " + f; return c.measureText(probe).width; }
+      var m0 = w("monospace"), a1 = w('"' + family + '", monospace');
+      var s0 = w("sans-serif"), a2 = w('"' + family + '", sans-serif');
+      return (Math.abs(a1 - m0) > 0.5) || (Math.abs(a2 - s0) > 0.5);
+    } catch (e) { return false; }
   }
 
   /* 公式手写化强度：由档位决定，可被高级设置覆盖 */
@@ -397,7 +422,8 @@
     /* 文字缩放（像 Word 的字号）只影响正文，不影响页面尺寸 */
     s.fontSize = Math.max(8, Math.round(s.fontSize * (s.textScale || 1)));
     s.lineHeightPx = s.fontSize * s.lineHeight;
-    var fscale = formulaScaleOf(s.fontKeyCJK || s.fontKey) * (s.formulaScale || 1);
+    /* 公式字号随**英文字体**的视觉比例自适应（公式里数字/拉丁为主） */
+    var fscale = formulaScaleOf(s.fontKeyLat || s.fontKey) * (s.formulaScale || 1);
     s.formulaPx = s.fontSize * fscale;
 
     var lines = layoutBlocks(blocks, s);
@@ -604,9 +630,14 @@
     layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor,
     measureText: measureText, fontStr: fontStr, fontCssOf: fontCssOf, addCustomFont: addCustomFont,
     visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf,
-    handOf: handOf, HAND_PRESETS: HAND_PRESETS, mathFontsOf: mathFontsOf, fontsByLang: function (lang) {
+    handOf: handOf, HAND_PRESETS: HAND_PRESETS, mathFontsOf: mathFontsOf, fontAvailable: fontAvailable, fontsByLang: function (lang) {
       var out = [];
-      for (var k in FONTS) if (!FONTS[k].custom && FONTS[k].lang === lang) out.push({ key: k, label: FONTS[k].label });
+      for (var k in FONTS) {
+        if (FONTS[k].custom || FONTS[k].lang !== lang) continue;
+        /* 系统字体若本机没装，隐藏该项，避免"选了没反应"（静默回退） */
+        if (FONTS[k].sys && !fontAvailable(FONTS[k].family)) continue;
+        out.push({ key: k, label: FONTS[k].label });
+      }
       return out;
     }
   };

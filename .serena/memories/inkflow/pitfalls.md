@@ -14,7 +14,9 @@
 ## 字体
 - **分批加载后选非默认字体不生效**：`boot()` 后台补齐回调曾用错键名 `state.fontCJK`（真名 `state.fontKeyCJK`）→ 条件永假不重绘，选到未加载字体就画成回退字体。改键名后修复。
 - **按需加载**：字体下拉 `pickFont()` 选到未加载字体时先 `await loadFontFamily(fam)` 再重绘，不要假设全部字体首屏已就绪。
-- **`document.fonts.check("16px X")` 不可靠**（对未注册家族也返回 true）；要枚举用 `Array.from(document.fonts).map(f=>f.family+"/"+f.status)`（`[].map.call` 对 FontFaceSet 无效，它没有 `length`）。
+- **`document.fonts.check("16px X")` 不可靠**（对未注册家族也返回 true）；要枚举用 `Array.from(document.fonts).map(f=>f.family+"/"+f.status)`（`[].map.call` 对 FontFaceSet 无效，它没有 `length`）。**可靠的存在性探测**：把族名与 `monospace`/`sans-serif` 并排测量同串文本，两者宽度都与通用族完全一致 ⇒ 未安装（见 `fontAvailable`）。
+- **系统字体不一定装了**：如本机无 `STXINGKA.TTF`，选「华文行楷」会静默回退到 CSS 链里的 `KaiTi`，看起来"选了没反应"。→ 下拉必须过滤掉 `!fontAvailable` 的系统字体。
+- **公式字体链曾只挂中文字体**：公式里全是数字/拉丁，导致「换英文字体时公式纹丝不动」。正解：`mathFontsOf` 顺序 = 英文字体 → 中文字体 → 拉丁兜底 → 中文兜底；`formulaScaleOf` 也用 `fontKeyLat`。
 - **探针脚本必须放在项目目录内**（如 `D:\转手写字体\_probe.html`），放 `D:\tmp\` 会让相对 `src="../js/..."` 404，页面不 boot。
 
 ## 公式

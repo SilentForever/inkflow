@@ -16,13 +16,14 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 - MathJax(tex-svg) 生成矢量 SVG → 隐藏离屏容器真实布局 → `getBoundingClientRect()` 读每个字形位置 → **在 canvas 上用手写字体重画字形**。
 - 关键原因：**SVG 以 `<img>`/data-url 载入处于隔离环境，读不到页面 Web 字体**，所以 `<text>` 放进 SVG 永远不是手写体 → 必须 canvas 画。
 - **字号推导**：沿 `use → g → … → svg` 累积 2×2 矩阵 M，`字号 = fontPx × sc`，`sc = sqrt(|det M|)`；基线 `baseY = (M.f − vbY) × uScale`。**不要用「墨迹包围盒高度」反推字号**——会把被 MathJax 拉长的括号/根号画得过大。`EX_RATIO=0.5`、`SS=2`。上下标自然得到 0.707×。
-- **字体链** `MATH_FALLBACK`（js/renderer.js）：当前正文字体 → MPLUSRounded1c → Zen Kurenaido → PottaOne → ZenMaruGothic → Yomogi → Klee One → MaShanZheng → LongCang → ZhiMangXing → LiuJianMaoCao；仍缺字符则保留 MathJax 原字形兜底（内容绝不丢失）。
+- **字体链** `mathFontsOf`（js/renderer.js）：**英文字体 → 中文字体 → 拉丁兜底(LATIN_FALLBACK) → 中文兜底(CJK_FALLBACK)**。公式里的数字/拉丁字形优先用**英文**字体，中文用中文字体；仍缺字符则保留 MathJax 原字形兜底（内容绝不丢失）。公式字号 `formulaScaleOf(s.fontKeyLat||s.fontKey)` 随**英文**字体自适应。**历史坑**：早期只挂中文字体链 → 换英文字体时公式纹丝不动。
 
 ## 字体
 - **20 款内置（11 中文 + 9 英文）**，`fonts/` 为 WOFF2，共约 20.8MB。中文默认 `Zen Kurenaido`，拉丁默认 `Caveat`；中英双下拉分别选。
 - 字体文件清单：`js/app.js` 的 `FONT_FILES`（20 条，`url` 均为 `*.woff2`）；字体定义：`js/renderer.js` 的 `FONTS`。
-- **8 款系统手写字体**（`FONTS` 里标 `sys:true`，`family` 为本机字族名，不打包）：中文 `华文行楷(STXingkai)`、`Ink Free`；英文 `Segoe Script`、`Segoe Print`、`Comic Sans MS`、`Gabriola`（另原有 `系统楷体 KaiTi`）。**下拉总数：中文 13、英文 13**（`fontsByLang` 自动带出）。
+- **系统手写字体**（`FONTS` 里标 `sys:true`，`family` 为本机字族名，不打包）：英文 `Segoe Script`、`Segoe Print`、`Comic Sans MS`、`Gabriola`、`Ink Free`；中文 `华文行楷(STXingkai)`、`系统楷体(KaiTi)`。**下拉会隐藏本机没装的系统字体**（`fontsByLang` 里 `sys && !fontAvailable(family)` 跳过），避免"选了没反应"的静默回退。`fontAvailable(family)`：族名与 `monospace`/`sans-serif` 并排测量同串文本，两者宽度都与通用族完全一致 ⇒ 未安装。
 - **字体按需加载**：`loadFontFamily(family)` 按 family 找到 `FONT_FILES` 条目并 `loadFontEntry`；系统字体返回 null（无需加载）。字体下拉 `pickFont()` 选到**尚未加载**的字体时先 `await loadFontFamily` 再 `scheduleRender(true)`。`registerFonts()`/`loadBootFonts()` 用 `_hasFamily(fam)`（前缀匹配）判重。
+- 本机实测下拉：中文 11（内置 11，华文行楷未装被隐藏）、英文 14（内置 9 + 系统 5）。
 
 ## 左栏（一体化导入面板 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：

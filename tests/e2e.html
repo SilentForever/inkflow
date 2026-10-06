@@ -417,11 +417,13 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     await t("字体下拉：中文/英文分组齐全（双下拉）", function(){
       function opts(id){ return [].map.call($(id).options, function(o){ return o.value; }); }
       var cjk = opts("fontCJK"), lat = opts("fontLat");
-      ["zenkurenaido","mplusround","pottaone","zenmaru","yomogi","mashanzheng","kleeone","longcang","zhimangxing","liujianmaocao","kai","stxingkai","sysink"].forEach(function(v){
+      /* 20 款内置字体必须齐全 */
+      ["zenkurenaido","mplusround","pottaone","zenmaru","yomogi","mashanzheng","kleeone","longcang","zhimangxing","liujianmaocao","kai"].forEach(function(v){
         if (cjk.indexOf(v) < 0) throw new Error("CJK missing " + v); });
-      ["caveat","patrick","indie","kalam","shadows","architects","gloria","reenie","rocksalt","segoescript","segoeprint","comic","gabriola"].forEach(function(v){
+      ["caveat","patrick","indie","kalam","shadows","architects","gloria","reenie","rocksalt"].forEach(function(v){
         if (lat.indexOf(v) < 0) throw new Error("LAT missing " + v); });
-      if (cjk.length !== 13 || lat.length !== 13) throw new Error("counts " + cjk.length + "/" + lat.length);
+      /* 系统字体按本机安装情况动态出现（未安装的自动隐藏），只保证不少于内置数量 */
+      if (cjk.length < 11 || lat.length < 9) throw new Error("counts " + cjk.length + "/" + lat.length);
       return "CJK " + cjk.length + " / LAT " + lat.length;
     });
 
