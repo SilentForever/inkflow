@@ -55,8 +55,14 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       <!-- WPS 式工具栏（对应「开始」选项卡）：两行分组，整齐不溢出 -->
       <div class="input-toolbar">
         <div class="tb-row">
-          <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
-          <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
+          <span class="font-field">
+            <span class="font-lbl">中文</span>
+            <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
+          </span>
+          <span class="font-field">
+            <span class="font-lbl">英文</span>
+            <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
+          </span>
           <label class="tool-size" title="字号">
             <input type="number" id="fontSize" class="font-size-input" min="12" max="96" step="1" value="28" aria-label="字号">
             <span class="tool-size-unit">px</span>
@@ -445,7 +451,11 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       if (!$("textColor")) throw new Error("缺字色控件");
       if (!$("fontCJK") || !$("fontLat")) throw new Error("缺字体下拉");
       if (!$("sizeFromSource")) throw new Error("缺「按原文大小」开关");
-      return "工具栏完整，无冗余页签";
+      /* 两个字体下拉必须各有可见的「中文 / 英文」标签，不能只靠位置区分 */
+      function lblOf(sel){ var f = sel.closest(".font-field"); var l = f && f.querySelector(".font-lbl"); return l ? l.textContent.trim() : ""; }
+      if (lblOf($("fontCJK")) !== "中文") throw new Error("中文字体下拉缺少可见「中文」标签");
+      if (lblOf($("fontLat")) !== "英文") throw new Error("英文字体下拉缺少可见「英文」标签");
+      return "工具栏完整，字体下拉带「中文 / 英文」标签";
     });
 
     await t("导入：单篇直接出稿、多篇就地成批量（无模式开关）", async function(){

@@ -39,8 +39,14 @@
       <!-- WPS 式工具栏（对应「开始」选项卡）：两行分组，整齐不溢出 -->
       <div class="input-toolbar">
         <div class="tb-row">
-          <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
-          <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
+          <span class="font-field">
+            <span class="font-lbl">中文</span>
+            <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
+          </span>
+          <span class="font-field">
+            <span class="font-lbl">英文</span>
+            <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
+          </span>
           <label class="tool-size" title="字号">
             <input type="number" id="fontSize" class="font-size-input" min="12" max="96" step="1" value="28" aria-label="字号">
             <span class="tool-size-unit">px</span>

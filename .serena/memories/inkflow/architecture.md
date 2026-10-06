@@ -27,7 +27,7 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 
 ## 左栏（一体化导入面板 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
-- 第 1 行 `.tb-row`：中文字体下拉 + 英文字体下拉（`.font-select` 用 `flex:1 1 108px` 等宽并排）+ 字号数字框 + `px`。
+- 第 1 行 `.tb-row`：**中文**字体下拉 + **英文**字体下拉（每个 `.font-select` 包在 `.font-field` 里、前面有可见的 `.font-lbl`「中文 / 英文」小标签——**两个下拉必须带可见标签**，不能只靠位置/`aria-label` 区分）+ 字号数字框 + `px`。
 - 第 2 行 `.tb-row`：字色 · `.tool-sep` · 缩放滑块 · `.tool-sep` · 「**按原文大小**」开关 `#sizeFromSource`（`.sfs-toggle`，默认开）。**B/I/U 按钮已随编辑器一并移除**（它们只作用于编辑器，导入内容不带加粗/斜体/下划线）。
 - 外层 `.input-toolbar{flex-direction:column;overflow:hidden}`，每行 `.tb-row{flex-wrap:wrap}`。**切勿再把这些控件塞进单个不可换行的 flex 组**（历史坑：总宽 ≈600px > 左栏 ≈477px → 横向溢出到中栏）。
 **左栏只有「导入」一种输入方式**（「编辑」页签与单篇编辑器已移除）：整块是**一体化导入面板** `#dropCard`（点卡片任意位置弹文件选择（多选）；`#dropzone` 整列可拖入；卡片下方「粘贴文本 / 识别图片」两个文字入口）。编辑器位置换成只读状态栏 `.doc-info`（`#counts`）。
