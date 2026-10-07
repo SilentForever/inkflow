@@ -54,6 +54,13 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 ## 右栏（预览列）
 头部 `col-head` 只留 **状态徽标 `#busy` + 自动开关**；动作按钮全在底部 `.preview-foot`（翻页 `.pager` + `#regenerate` + `#exportPng` + `#exportPdf`）。画布区 `.preview-stage` 用点阵网格底纹；空状态 `.preview-empty` 分级（`.pe-ico/.pe-title/.pe-sub/.pe-hint`）。
 
+## 渲染：prepare（布局，一次）→ rasterizePage（按需光栅化）——懒渲染
+- `renderer` 拆成两个 API：`prepare(blocks, s)` 只做**布局 + 公式预处理**（与分辨率无关，返回 `{lines,pages,mathMap,s,stats}`，**不含任何 canvas**）；`rasterizePage(layout, p, K)` 把**第 p 页**画成 canvas（K 倍超采样）。
+- `render(blocks, s, opts)` 保留为兼容包装（prepare + 循环 rasterizePage，支持 `opts.scale`/`opts.onlyPage`），测试/准确率仍用它。
+- **懒渲染动机**：A4 一页 canvas ≈ 8.7MB（1240×1754×4）；旧实现整篇常驻。现在**预览只光栅化当前页**（`app.paintPage` → `rasterizePage(curLayout, currentPage, 1)`），**队列只缓存 `layout`**（`queue.renderOne` 调 `prepare`，不再存 canvas）。实测 54 页文档常驻从 ~470MB 降到 ~9MB（-98%）。
+- **导出仍整篇**（PDF 要全部页），但导出走 `renderHiRes`（`render(...,{scale:2})`）逐页高分辨率重绘——此时 canvas 数组是临时变量，导出后可回收。
+- **坑**：`app.js` 的 `pages` 现在是**行数组的数组**（`layout.pages`），不是 canvas 数组；`paintPage` 必须经 `rasterizePage`。队列项字段由 `it.pages`（canvas 数组）改为 `it.layout`；`allPagesOf` 已删除（页数用 `it.layout.pages.length`）。**改这些名字时记得同步 `tests/e2e.html` 的 `Q.items()[0].layout` 断言**。
+
 ## 导出：超采样重渲染（真正高清，非拉伸）
 - 预览画布固定 1240×1754（A4，K=1）；**导出时不复用预览画布**，而是 `InkRender.render(blocks, toSettings(), {scale:K})` 重新光栅化：画布尺寸 ×K、整体 `ctx.scale(K,K)`。**布局仍在基础坐标系计算 → 换行/分页与预览逐字一致**，只是位图真正更清晰。
 - `js/app.js` 新增 `renderHiRes(text, opts)`；PNG 用 `{scale:3, onlyPage:currentPage}`（只画当前页，`renderer` 的 `opts.onlyPage` 跳过其余页，`stats.pages` 仍报总页数），PDF/批量用 `{scale:2}` + `exportPDF(..., {dpi:300})`。

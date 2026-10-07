@@ -525,12 +525,13 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       if (!st.some(function(s){ return s.indexOf("done") >= 0; })) throw new Error("缺少完成徽标");
       if (!st.some(function(s){ return s.indexOf("error") >= 0; })) throw new Error("缺少失败徽标");
       /* 缓存：参数未变时二次转写不应重绘 */
-      var pagesRef = Q.items()[0].pages;
+      var pagesRef = Q.items()[0].layout;
       await Q.renderOne(Q.items()[0], window.InkApp.toSettings(), false);
-      if (Q.items()[0].pages !== pagesRef) throw new Error("缓存未命中，重复渲染了");
+      if (Q.items()[0].layout !== pagesRef) throw new Error("缓存未命中，重复渲染了");
       /* 勾选与批量导出集合 */
       if (Q.checked().length !== 2) throw new Error("勾选数应为 2，实际 " + Q.checked().length);
-      if (Q.allPagesOf(Q.checked()).length < 2) throw new Error("合并页数不足");
+      var totalPages = Q.checked().reduce(function (n, it) { return n + it.layout.pages.length; }, 0);
+      if (totalPages < 2) throw new Error("合并页数不足");
       Q.clearAll();
       await sleep(200);
       return "2 完成 / 1 失败 / 缓存命中 / 勾选 2";

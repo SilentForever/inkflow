@@ -41,6 +41,7 @@
 | 页面 | 页眉、日期、页码、总页数 |
 | **生成方式** | 默认**自动重绘**；可关闭后手动点「**生成手写稿**」（待生成时按钮变橙提示） |
 | 导出 | 单页高清 PNG（3×）、多页 PDF（300 DPI，均**超采样**生成，非拉伸放大） |
+| 内存 | **懒渲染**：预览只光栅化当前页、队列只缓存布局（54 页文档常驻内存从 ~470MB 降到 ~9MB） |
 | 导入 | TXT / Markdown / **PDF** / **Word(.docx)** / **图片 OCR** |
 | 可复现 | 随机种子，同种子 → 完全相同的排版 |
 
@@ -152,7 +153,7 @@ node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
 输出示例：
 
 ```
-✅ 单元 / 集成   43 / 43
+✅ 单元 / 集成   44 / 44
 ✅ 准确率审计    378 / 378  准确率 100%
 ✅ 端到端 UI     30 / 30
 🎉 全部通过
@@ -165,7 +166,7 @@ node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
 ```bash
 CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 
-# 单元 / 集成测试（43 项）
+# 单元 / 集成测试（44 项）
 "$CHROME" --headless=new --disable-gpu --no-sandbox --dump-dom \
   --virtual-time-budget=100000 \
   "file:///D:/转手写字体/tests/run-tests.html"
@@ -181,7 +182,7 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
   "file:///D:/转手写字体/tests/e2e.html"
 ```
 
-**最近一次结果：单元 43 / 43 + 端到端 30 / 30 + 准确率审计 378 / 378（100%）全部通过**
+**最近一次结果：单元 44 / 44 + 端到端 30 / 30 + 准确率审计 378 / 378（100%）全部通过**
 
 | 维度 | 结果 |
 |---|---|
@@ -389,4 +390,5 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 6. **图片 OCR 需要 http(s) 环境**：浏览器禁止 `file://` 页面创建 Worker，因此本地双击打开时"识别图片"按钮会置灰；线上版本（Vercel 等）正常可用。
 7. **扫描版 PDF（无文字层）**无法提取文字：导入时会明确提示改用「识别图片」或先 OCR 成可选中文字的 PDF，不会静默出错；
 8. **Word 的"自然分页"无法还原**：`.docx` 只记录显式分页符（`w:br type="page"` / `w:lastRenderedPageBreak` / 段前分页）；若内容只是"排满一页自然翻页"，Word 文件本身不含该页边界信息，故「按原页分页」对这类文档只能按内容流连续排布；
-9. 原页内容若**多到溢出**，转写会续到下一张纸，页码标注为「N（续）」，不与原页号撞号。
+9. 原页内容若**多到溢出**，转写会续到下一张纸，页码标注为「N（续）」，不与原页号撞号；
+10. **懒渲染的代价**：翻页时按需重新光栅化当前页（单页约几十毫秒），换来常驻内存大幅下降；导出则整篇逐页重绘（高分辨率，一次性）。

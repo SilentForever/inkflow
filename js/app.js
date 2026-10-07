@@ -134,7 +134,8 @@
   /* ================= DOM ================= */
   var $ = function (id) { return document.getElementById(id); };
   var els = {};
-  var pages = [];
+  var pages = [];                 // 当前文档的分页（每页为行数组）；页数 = pages.length
+  var curLayout = null;           // 当前文档的布局（prepare 结果）；页面预览按需 rasterize，避免整篇常驻内存
   var currentPage = 0;
   var renderToken = 0;
   var lastStats = null;
@@ -197,7 +198,7 @@
     var token = ++renderToken;
     var src = state.docText || "";
     if (!src.trim()) {
-      pages = []; currentPage = 0;
+      pages = []; curLayout = null; currentPage = 0;
       showEmpty(true);
       updateStats(null);
       return;
@@ -207,14 +208,16 @@
     try {
       var blocks = global.InkParser.parse(src);
       var settings = toSettings();
-      var res = await global.InkRender.render(blocks, settings, {});
+      /* 只做布局（prepare，一次）；页面按需 rasterize（懒渲染）→ 大文档不再整篇 canvas 常驻 */
+      var layout = await global.InkRender.prepare(blocks, settings);
       if (token !== renderToken) return;   // 已有更新的渲染
-      pages = res.canvases;
-      lastStats = res.stats;
-      degradedCount = countDegraded(res.lines);
+      curLayout = layout;
+      pages = layout.pages;
+      lastStats = layout.stats;
+      degradedCount = countDegraded(layout.lines);
       if (currentPage >= pages.length) currentPage = 0;
       paintPage(currentPage);
-      updateStats(res.stats);
+      updateStats(layout.stats);
       if (degradedCount > 0) toast(degradedCount + " 处公式未能渲染，已按原文显示", "warn", 3600);
     } catch (e) {
       console.error(e);
@@ -243,9 +246,10 @@
 
   function paintPage(idx) {
     var stage = $("stage");
-    if (!pages.length) { showEmpty(true); return; }
+    if (!pages.length || !curLayout) { showEmpty(true); return; }
     currentPage = U.clamp(idx, 0, pages.length - 1);
-    var cv = pages[currentPage];
+    /* 懒渲染：只光栅化当前页（按需 rasterizePage），不常驻整篇 canvas */
+    var cv = global.InkRender.rasterizePage(curLayout, currentPage, 1);
     var old = document.getElementById("preview");
     if (old && old.parentNode) old.parentNode.removeChild(old);
     cv.id = "preview";
@@ -606,8 +610,9 @@
       if (!it) return;
       state.docText = it.text || "";
       updateCounts();
-      if (it.status === "done" && it.pages) { pages = it.pages; currentPage = 0; paintPage(0); }
-      else { pages = []; paintPage(0); }
+      /* 懒渲染：命中已转写的缓存则用其布局按需画当前页；否则清空 */
+      if (it.status === "done" && it.layout) { curLayout = it.layout; pages = it.layout.pages; currentPage = 0; paintPage(0); }
+      else { curLayout = null; pages = []; paintPage(0); }
       renderQueueList();
     }
     function renderQueueList() {
@@ -637,7 +642,7 @@
         var st = document.createElement("span");
         st.className = "q-status " + it.status;
         var pg = (it.pageCount > 1) ? ("（原文 " + it.pageCount + " 页）") : "";
-        st.textContent = it.status === "done" ? ("✓ 已完成 " + (it.pages ? it.pages.length : 0) + " 页" + pg)
+        st.textContent = it.status === "done" ? ("✓ 已完成 " + (it.layout ? it.layout.pages.length : 0) + " 页" + pg)
           : it.status === "rendering" ? "⟳ 转写中"
           : it.status === "error" ? ("✕ " + (it.error || "失败").slice(0, 14))
           : ("○ 待转写" + pg);
@@ -695,8 +700,8 @@
       syncPanels();
       renderQueueList();
       var cur = global.InkQueue.current();
-      if (cur && cur.status === "done" && cur.pages && cur.pages !== pages) {
-        pages = cur.pages; currentPage = 0; paintPage(0);
+      if (cur && cur.status === "done" && cur.layout && cur.layout !== curLayout) {
+        curLayout = cur.layout; pages = cur.layout.pages; currentPage = 0; paintPage(0);
       }
     }});
 

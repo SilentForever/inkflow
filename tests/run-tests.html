@@ -265,6 +265,22 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: '基础=' + r1.canvases[0].width + ' 超采样=' + r2.canvases[0].width + ' onlyPage=' + r3.canvases.length + '/' + r3.stats.pages };
   });
 
+  await t('渲染器：prepare/rasterizePage 懒渲染（不预生成全部画布，且与 render 一致）', async function () {
+    var src = window.InkSamples.equation;
+    var S = baseSettings();
+    var a = await window.InkRender.render(window.InkParser.parse(src), S, {});
+    var layout = await window.InkRender.prepare(window.InkParser.parse(src), S);
+    assert(!('canvases' in layout), 'prepare 不应产出 canvas（懒渲染）');
+    assert(layout.pages.length === a.canvases.length, 'prepare 页数与 render 不一致：' + layout.pages.length + ' vs ' + a.canvases.length);
+    var cv = window.InkRender.rasterizePage(layout, 0, 1);
+    assert(cv.width === 1240 && cv.height === 1754, 'rasterizePage 尺寸错误: ' + cv.width + 'x' + cv.height);
+    function h(c) { var d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; var s = 0; for (var i = 0; i < d.length; i += 4 * 97) s = (s * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) >>> 0; return s; }
+    var cv2 = window.InkRender.rasterizePage(layout, 0, 1);
+    assert(h(cv) === h(cv2), '同一 layout 两次光栅化应逐像素一致（确定性）');
+    assert(h(cv) === h(a.canvases[0]), 'rasterizePage 应与 render 首屏一致');
+    return { pass: true, detail: 'pages=' + layout.pages.length + ' 尺寸=' + cv.width + 'x' + cv.height + ' 哈希一致' };
+  });
+
   await t('导入器：PDF 分页标记 + 扫描件（无文字层）明确报错', async function () {
     /* 伪 pdf.js：两页各有文字 → 应打 [1,2] 分页标记；随后两页皆空 → 应明确抛错 */
     function makePdf(spec) {

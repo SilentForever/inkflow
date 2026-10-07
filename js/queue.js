@@ -38,7 +38,7 @@
       status: text ? "pending" : "error",
       error: text ? "" : "未识别到内容",
       pageCount: pageCountOf(text || ""),   // 原文档页数（多页 PDF/Word > 1）
-      pages: null,
+      layout: null,                          // prepare 结果（按需光栅化，不缓存整篇 canvas）
       settingsHash: 0,
       checked: true
     };
@@ -74,23 +74,23 @@
     return c;
   }
 
-  /* 转写单篇：渲染 → 缓存 */
+  /* 转写单篇：只做布局（prepare），页面按需光栅化 → 队列不常驻整篇 canvas（省内存） */
   async function renderOne(it, s, force) {
     var h = hashSettings(s);
-    if (!force && it.pages && it.settingsHash === h) return;   // 命中缓存
+    if (!force && it.layout && it.settingsHash === h) return;   // 命中缓存
     it.status = "rendering";
     it.error = "";
     ctx.onChange();
     try {
       var blocks = global.InkParser.parse(it.text);
-      var res = await global.InkRender.render(blocks, s, {});
-      it.pages = res.canvases;
+      var layout = await global.InkRender.prepare(blocks, s);
+      it.layout = layout;
       it.settingsHash = h;
       it.status = "done";
     } catch (e) {
       it.status = "error";
       it.error = String(e && e.message || e);
-      it.pages = null;
+      it.layout = null;
     }
     ctx.onChange();
   }
@@ -135,19 +135,13 @@
   function current() { return get(currentId); }
   function select(id) { currentId = id; ctx.onChange(); return get(id); }
 
-  function checked() { return items.filter(function (x) { return x.checked && x.status === "done" && x.pages; }); }
-
-  function allPagesOf(list) {
-    var out = [];
-    list.forEach(function (it) { out = out.concat(it.pages); });
-    return out;
-  }
+  function checked() { return items.filter(function (x) { return x.checked && x.status === "done" && x.layout; }); }
 
   global.InkQueue = {
     bind: function (o) { if (o) ctx = Object.assign({}, ctx, o); },
     add: add, remove: remove, clearAll: clearAll, get: get, items: function () { return items; },
     counts: counts, runAll: runAll, stop: stop, renderOne: renderOne,
-    current: current, select: select, checked: checked, allPagesOf: allPagesOf,
+    current: current, select: select, checked: checked,
     hashSettings: hashSettings,
     isRunning: function () { return running; }
   };

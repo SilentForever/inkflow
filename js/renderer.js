@@ -426,9 +426,9 @@
     if (jobs.length) await Promise.all(jobs);
   }
 
-  /* ---------- 主渲染 ---------- */
-  async function render(blocks, s, opts) {
-    opts = opts || {};
+  /* ---------- 主渲染：prepare（布局，一次）→ rasterizePage（画某页，按需） ---------- */
+  /* 布局 + 公式预处理（与分辨率无关，只做一次）。返回 {lines,pages,mathMap,s,stats} */
+  async function prepare(blocks, s) {
     var now = function () { return (global.performance || Date).now(); };
     var t0 = now();
 
@@ -461,33 +461,35 @@
     var tMath = now();
 
     var pages = paginate(lines, s);
-    var canvases = [];
+    return {
+      lines: lines, pages: pages, mathMap: mathMap, s: s,
+      stats: {
+        layoutMs: Math.round(tLayout - t0), mathMs: Math.round(tMath - tLayout),
+        lineCount: lines.length, mathCount: mathMap.size, pages: pages.length
+      }
+    };
+  }
 
-    /* 导出用超采样：按 K 倍分辨率绘制。布局仍在基础坐标系里算（换行/分页与预览逐字一致），
-       只是把画布放大 K 倍、再整体 ctx.scale(K,K) → 位图真正更清晰，
-       而不是把低分辨率画布拉伸放大（后者只会变糊）。预览走 K=1，故预览不受影响。 */
-    var K = Math.max(1, Math.min(4, Math.round(opts.scale || 1)));
-    var only = (opts.onlyPage != null) ? opts.onlyPage : -1;   // 只光栅化指定页（用于单页高分辨率 PNG 导出）
+  /* 把某一页光栅化为 canvas；K 倍超采样（画布×K + ctx.scale(K,K)），布局坐标系不变 → 与预览逐字一致 */
+  function rasterizePage(layout, p, K) {
+    var s = layout.s, pages = layout.pages, mathMap = layout.mathMap;
+    var cv = document.createElement("canvas");
+    cv.width = s.pageWidth * K; cv.height = s.pageHeight * K;
+    var ctx = cv.getContext("2d");
+    if (K !== 1) ctx.scale(K, K);
+    ctx.textBaseline = "alphabetic";
 
-    for (var p = 0; p < pages.length; p++) {
-      if (only >= 0 && p !== only) continue;
-      var cv = document.createElement("canvas");
-      cv.width = s.pageWidth * K; cv.height = s.pageHeight * K;
-      var ctx = cv.getContext("2d");
-      if (K !== 1) ctx.scale(K, K);
-      ctx.textBaseline = "alphabetic";
+    var paper = global.InkPaper.byId(s.paper);
+    global.InkPaper.draw(ctx, paper, {
+      width: s.pageWidth, height: s.pageHeight, top: s.marginTop, bottom: s.marginBottom,
+      left: s.marginLeft, right: s.marginRight, lineH: s.lineHeightPx
+    });
 
-      var paper = global.InkPaper.byId(s.paper);
-      global.InkPaper.draw(ctx, paper, {
-        width: s.pageWidth, height: s.pageHeight, top: s.marginTop, bottom: s.marginBottom,
-        left: s.marginLeft, right: s.marginRight, lineH: s.lineHeightPx
-      });
+    var rnd = new U.Rand(s.seed, "page" + p + "|" + s.seed);
+    var y = s.marginTop;
+    var drift = 0;
 
-      var rnd = new U.Rand(s.seed, "page" + p + "|" + s.seed);
-      var y = s.marginTop;
-      var drift = 0;
-
-      for (var li = 0; li < pages[p].length; li++) {
+    for (var li = 0; li < pages[p].length; li++) {
         var ln = pages[p][li];
         var lh = lineHeightFor(ln, s);
 
@@ -567,18 +569,25 @@
       /* 该渲染页的页码锚定（多页 PDF/Word 时为 1 基；否则 0 → 用顺序页码） */
       var sl = sourceLabelOf(pages, p);
       drawFurniture(ctx, s, p, pages.length, rnd, sl.src, sl.cont);
-      canvases.push(cv);
-    }
+    return cv;
+  }
 
-    var tEnd = now();
+  /* 兼容旧调用：prepare 一次 → 光栅化需要的页。opts.scale 超采样；opts.onlyPage 只画该页。 */
+  async function render(blocks, s, opts) {
+    opts = opts || {};
+    var t0 = (global.performance || Date).now();
+    var layout = await prepare(blocks, s);
+    var K = Math.max(1, Math.min(4, Math.round(opts.scale || 1)));
+    var only = (opts.onlyPage != null) ? opts.onlyPage : -1;
+    var canvases = [];
+    for (var p = 0; p < layout.pages.length; p++) {
+      if (only >= 0 && p !== only) continue;
+      canvases.push(rasterizePage(layout, p, K));
+    }
+    layout.stats.totalMs = Math.round((global.performance || Date).now() - t0);
     return {
-      canvases: canvases, lines: lines, pageCount: canvases.length,
-      stats: {
-        layoutMs: Math.round(tLayout - t0),
-        mathMs: Math.round(tMath - tLayout),
-        totalMs: Math.round(tEnd - t0),
-        lineCount: lines.length, mathCount: mathMap.size, pages: pages.length
-      }
+      canvases: canvases, lines: layout.lines, pageCount: layout.pages.length,
+      stats: layout.stats, layout: layout
     };
   }
 
@@ -677,7 +686,8 @@
   }
 
   global.InkRender = {
-    render: render, FONTS: FONTS, MONO: MONO, PAGE_SIZES: PAGE_SIZES,
+    render: render, prepare: prepare, rasterizePage: rasterizePage,
+    FONTS: FONTS, MONO: MONO, PAGE_SIZES: PAGE_SIZES,
     layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor, sourceLabelOf: sourceLabelOf,
     measureText: measureText, fontStr: fontStr, fontCssOf: fontCssOf, addCustomFont: addCustomFont,
     visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf,
