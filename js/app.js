@@ -140,6 +140,12 @@
   var lastStats = null;
   var degradedCount = 0;
 
+  /* 导出文件名：附加本地时间戳，避免多次导出互相覆盖（纯本地，仅用于文件名） */
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  }
+
   function toast(msg, kind, ms) {
     var host = $("toasts");
     if (!host) return;
@@ -420,14 +426,14 @@
     var expPng = $("exportPng");
     if (expPng) expPng.addEventListener("click", async function () {
       if (!pages.length) return toast("没有可导出的内容", "warn");
-      try { await global.InkExport.exportPNG(pages[currentPage], "inkflow-page" + (currentPage + 1) + ".png", 2); toast("PNG 已导出（第 " + (currentPage + 1) + " 页）", "ok"); }
+      try { await global.InkExport.exportPNG(pages[currentPage], "inkflow-" + stamp() + "-p" + (currentPage + 1) + ".png", 2); toast("PNG 已导出（第 " + (currentPage + 1) + " 页）", "ok"); }
       catch (e) { toast("导出失败：" + e.message, "err"); }
     });
 
     var expPdf = $("exportPdf");
     if (expPdf) expPdf.addEventListener("click", async function () {
       if (!pages.length) return toast("没有可导出的内容", "warn");
-      try { setBusy(true); await global.InkExport.exportPDF(pages, "inkflow.pdf", { dpi: 150, quality: 0.92 }); toast("PDF 已导出（" + pages.length + " 页）", "ok"); }
+      try { setBusy(true); await global.InkExport.exportPDF(pages, "inkflow-" + stamp() + ".pdf", { dpi: 150, quality: 0.92 }); toast("PDF 已导出（" + pages.length + " 页）", "ok"); }
       catch (e) { toast("导出失败：" + e.message, "err"); }
       finally { setBusy(false); }
     });
@@ -654,7 +660,7 @@
       var all = global.InkQueue.allPagesOf(sel);
       try {
         setBusy(true);
-        await global.InkExport.exportPDF(all, "inkflow-batch-" + sel.length + ".pdf", { dpi: 150, quality: 0.92 });
+        await global.InkExport.exportPDF(all, "inkflow-batch-" + sel.length + "-" + stamp() + ".pdf", { dpi: 150, quality: 0.92 });
         toast("已导出 " + sel.length + " 篇（共 " + all.length + " 页）", "ok", 3200);
       } catch (e) { toast("导出失败：" + e.message, "err"); }
       finally { setBusy(false); }

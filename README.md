@@ -134,19 +134,36 @@ vercel --prod
 ├─ vendor/               本地依赖（MathJax / jsPDF / PDF.js / Mammoth / Tesseract）
 ├─ fonts/                20 款本地手写字体（11 中文 + 9 英文，WOFF2；另有系统手写字体随系统即时可用、按安装情况动态显示，不在此目录）
 ├─ samples/              示例文档
-└─ tests/                自动化测试与截图
+└─ tests/                自动化测试与截图（`run.js` 一键运行三套）
 ```
 
 ---
 
 ## 测试
 
-两套测试均用 Chrome 无头模式运行，输出 `RESULTS_JSON:` / `E2E_JSON:`。
+三套测试均用 Chrome 无头模式运行。**一键运行**（推荐，任一失败即退出码非零）：
+
+```bash
+CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"   # 或自动探测
+node tests/run.js            # 全部三套
+node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
+```
+
+输出示例：
+
+```
+✅ 单元 / 集成   42 / 42
+✅ 准确率审计    378 / 378  准确率 100%
+✅ 端到端 UI     30 / 30
+🎉 全部通过
+```
+
+也可单独手动运行（输出 `RESULTS_JSON:` / `ACC_JSON:` / `E2E_JSON:`）：
 
 ```bash
 CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 
-# 单元 / 集成测试（40 项）
+# 单元 / 集成测试（42 项）
 "$CHROME" --headless=new --disable-gpu --no-sandbox --dump-dom \
   --virtual-time-budget=100000 \
   "file:///D:/转手写字体/tests/run-tests.html"
@@ -162,7 +179,7 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
   "file:///D:/转手写字体/tests/e2e.html"
 ```
 
-**最近一次结果：单元 40 / 40 + 端到端 30 / 30 + 准确率审计 378 / 378（100%）全部通过**
+**最近一次结果：单元 42 / 42 + 端到端 30 / 30 + 准确率审计 378 / 378（100%）全部通过**
 
 | 维度 | 结果 |
 |---|---|
@@ -368,3 +385,6 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 4. 导出 PDF 采用高分辨率位图嵌入，文本不可选中（手写体场景下这是预期行为）；
 5. 自定义字体若本身不含中文字形，中文会回退到系统字体显示；
 6. **图片 OCR 需要 http(s) 环境**：浏览器禁止 `file://` 页面创建 Worker，因此本地双击打开时"识别图片"按钮会置灰；线上版本（Vercel 等）正常可用。
+7. **扫描版 PDF（无文字层）**无法提取文字：导入时会明确提示改用「识别图片」或先 OCR 成可选中文字的 PDF，不会静默出错；
+8. **Word 的"自然分页"无法还原**：`.docx` 只记录显式分页符（`w:br type="page"` / `w:lastRenderedPageBreak` / 段前分页）；若内容只是"排满一页自然翻页"，Word 文件本身不含该页边界信息，故「按原页分页」对这类文档只能按内容流连续排布；
+9. 原页内容若**多到溢出**，转写会续到下一张纸，页码标注为「N（续）」，不与原页号撞号。

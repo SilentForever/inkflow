@@ -148,6 +148,10 @@
       pageLines.push(built);
       for (var b = 0; b < built.length; b++) if (built[b].text) allH.push(built[b].h);
     }
+    /* 扫描件（无文字层）检测：整份 PDF 一行文字都没抽到 → 明确提示改用图片识别 */
+    if (!allH.length) {
+      throw new Error("这份 PDF 没有可提取的文字层（多半是扫描件 / 图片版）→ 请改用「识别图片」，或先用 OCR 工具把它转成可选中文字的 PDF");
+    }
     /* 正文字号 = 出现最多的字号；每行按相对大小打标记，实现「按原文字号转写」 */
     var body = bodySizeOf(allH);
     var pageTexts = [];

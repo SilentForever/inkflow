@@ -35,6 +35,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
 <script src="../js/paper.js"></script>
 <script src="../js/renderer.js"></script>
 <script src="../js/exporter.js"></script>
+<script src="../js/importers.js"></script>
 <script src="../js/samples.js"></script>
 <script src="../js/app.js"></script>
 <script>
@@ -230,6 +231,58 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     var r2 = await window.InkRender.render(blocks2, baseSettings({ pageAnchor: false }), {});
     assert(r2.canvases.length === 1, '关闭锚定后应 1 页，实际 ' + r2.canvases.length);
     return { pass: true, detail: '锚定=' + r1.canvases.length + ' 关闭=' + r2.canvases.length };
+  });
+
+  await t('渲染器：续页页码锚定标注「（续）」（sourceLabelOf）', function () {
+    var S = window.InkRender.sourceLabelOf;
+    function pg(pageStart) { return [{ pageStart: pageStart || 0 }]; }
+    var pages = [ pg(1), pg(0), pg(2), pg(0), pg(0) ];   /* 原页1 → 两页；原页2 → 三页 */
+    var r0 = S(pages, 0), r1 = S(pages, 1), r2 = S(pages, 2), r3 = S(pages, 3), r4 = S(pages, 4);
+    assert(r0.src === 1 && !r0.cont, '第1张应为原页1首页');
+    assert(r1.src === 1 && r1.cont, '第2张应为原页1续页');
+    assert(r2.src === 2 && !r2.cont, '第3张应为原页2首页');
+    assert(r3.src === 2 && r3.cont, '第4张应为原页2续页');
+    assert(r4.src === 2 && r4.cont, '第5张应为原页2续页');
+    var plain = [ pg(0), pg(0) ];   /* 无锚点文档：全部走顺序页码 */
+    assert(S(plain, 0).src === 0 && !S(plain, 0).cont, '无锚点应为顺序页码');
+    assert(S(plain, 1).src === 0 && !S(plain, 1).cont, '无锚点续页仍为顺序页码');
+    return { pass: true, detail: '续页 [1,1续,2,2续,2续]；无锚点 [0,0]' };
+  });
+
+  await t('导入器：PDF 分页标记 + 扫描件（无文字层）明确报错', async function () {
+    /* 伪 pdf.js：两页各有文字 → 应打 [1,2] 分页标记；随后两页皆空 → 应明确抛错 */
+    function makePdf(spec) {
+      return {
+        GlobalWorkerOptions: {},
+        getDocument: function () {
+          return { promise: Promise.resolve({
+            numPages: spec.length,
+            getPage: async function (p) {
+              var items = spec[p - 1].map(function (it) { return { str: it.s, transform: [it.h, 0, 0, it.h, 0, it.y] }; });
+              return { getTextContent: async function () { return { items: items }; } };
+            }
+          }) };
+        }
+      };
+    }
+    function fakeFile() { return { name: 'x.pdf', arrayBuffer: async function () { return new ArrayBuffer(8); } }; }
+    var _real = window.pdfjsLib;
+    try {
+      window.pdfjsLib = makePdf([
+        [{ s: '第一页 标题', h: 24, y: 700 }, { s: '第一页 正文', h: 12, y: 660 }],
+        [{ s: '第二页 正文', h: 12, y: 700 }]
+      ]);
+      var t1 = await window.InkImport.capture([fakeFile()]);
+      var marks = window.InkParser.pageMarks(t1);
+      assert(marks.join(',') === '1,2', 'PDF 两页应标记 [1,2]，实际 ' + JSON.stringify(marks));
+      assert(t1.replace(/\u0001PG\d+\u0001/g, '').indexOf('\u0001PG') < 0, 'PG 标记残留');
+
+      window.pdfjsLib = makePdf([[]]);   /* 无文字层 */
+      var threw = '';
+      try { await window.InkImport.capture([fakeFile()]); } catch (e) { threw = String(e && e.message || e); }
+      assert(/没有可提取的文字层/.test(threw), '扫描件应明确报错，实际: ' + JSON.stringify(threw));
+    } finally { window.pdfjsLib = _real; }
+    return { pass: true, detail: '分页标记 [1,2]；扫描件明确报错' };
   });
 
   /* ---------- 4. 确定性 / 种子 ---------- */

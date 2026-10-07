@@ -556,10 +556,9 @@
         y += lh;
       }
 
-      /* 该渲染页锚定到的原文档页码（多页 PDF/Word 时为 1 基；否则 0 → 用顺序页码） */
-      var srcPage = 0;
-      for (var q = 0; q < pages[p].length; q++) { if (pages[p][q].pageStart > 0) { srcPage = pages[p][q].pageStart; break; } }
-      drawFurniture(ctx, s, p, pages.length, rnd, srcPage);
+      /* 该渲染页的页码锚定（多页 PDF/Word 时为 1 基；否则 0 → 用顺序页码） */
+      var sl = sourceLabelOf(pages, p);
+      drawFurniture(ctx, s, p, pages.length, rnd, sl.src, sl.cont);
       canvases.push(cv);
     }
 
@@ -630,7 +629,20 @@
     ctx.fillStyle = color;
   }
 
-  function drawFurniture(ctx, s, pageIdx, total, rnd, srcPage) {
+  /* 渲染页的页码锚定：{src: 原页号(0=顺序), cont: 是否续页}
+     · 本页首行带 pageStart → 该原页的首页；
+     · 否则回溯最近的「原页首页」→ 该原页的续页（沿用其页号并标「续」）。
+       回溯而非只看上一页：一个原页可能连续溢出到 3+ 张纸。 */
+  function sourceLabelOf(pages, p) {
+    var first = pages[p][0];
+    if (first && first.pageStart > 0) return { src: first.pageStart, cont: false };
+    for (var j = p - 1; j >= 0; j--) {
+      if (pages[j].length && pages[j][0].pageStart > 0) return { src: pages[j][0].pageStart, cont: true };
+    }
+    return { src: 0, cont: false };
+  }
+
+  function drawFurniture(ctx, s, pageIdx, total, rnd, srcPage, srcContinues) {
     if (!s.showHeader && !s.showFooter) return;
     ctx.save();
     ctx.globalAlpha = U.clamp(s.inkAmount * 0.8, 0.1, 1);
@@ -648,8 +660,8 @@
     }
     if (s.showFooter) {
       ctx.textAlign = "center";
-      /* 多页 PDF/Word：页码锚定到原文档页码；否则用顺序页码 */
-      var label = String(srcPage > 0 ? srcPage : (pageIdx + 1));
+      /* 多页 PDF/Word：页码锚定到原文档页码；否则用顺序页码。续页标注「（续）」。 */
+      var label = String(srcPage > 0 ? (srcPage + (srcContinues ? "（续）" : "")) : (pageIdx + 1));
       if (s.showTotalPages) label += " / " + total;
       ctx.fillText(label, s.pageWidth / 2 + rnd.jitter(1.2), s.pageHeight - s.marginBottom * 0.42);
     }
@@ -658,7 +670,7 @@
 
   global.InkRender = {
     render: render, FONTS: FONTS, MONO: MONO, PAGE_SIZES: PAGE_SIZES,
-    layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor,
+    layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor, sourceLabelOf: sourceLabelOf,
     measureText: measureText, fontStr: fontStr, fontCssOf: fontCssOf, addCustomFont: addCustomFont,
     visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf,
     handOf: handOf, HAND_PRESETS: HAND_PRESETS, mathFontsOf: mathFontsOf, fontAvailable: fontAvailable, fontsByLang: function (lang) {

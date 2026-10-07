@@ -8,3 +8,4 @@ Thumbs.db
 
 # 测试截图等中间产物（本地复核用，不入库）
 tests/out/
+tests/.run/
