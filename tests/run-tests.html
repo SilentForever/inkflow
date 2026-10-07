@@ -249,6 +249,22 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: '续页 [1,1续,2,2续,2续]；无锚点 [0,0]' };
   });
 
+  await t('渲染器：导出超采样（K 倍分辨率，布局一致）+ onlyPage', async function () {
+    var src = window.InkSamples.equation;
+    var r1 = await window.InkRender.render(window.InkParser.parse(src), baseSettings(), {});
+    var r2 = await window.InkRender.render(window.InkParser.parse(src), baseSettings(), { scale: 2 });
+    assert(r1.canvases[0].width === 1240, '基础宽应为 1240，实际 ' + r1.canvases[0].width);
+    assert(r2.canvases[0].width === 2480, '2× 宽应为 2480，实际 ' + r2.canvases[0].width);
+    assert(r2.canvases[0].height === 1754 * 2, '2× 高应为 3508，实际 ' + r2.canvases[0].height);
+    assert(r1.canvases.length === r2.canvases.length, '超采样不应改变页数');
+    assert(r1.stats.lineCount === r2.stats.lineCount, '超采样不应改变行数（布局一致）');
+    /* onlyPage：只光栅化指定页（单页 PNG 导出用），stats.pages 仍报总页数 */
+    var r3 = await window.InkRender.render(window.InkParser.parse(src), baseSettings(), { scale: 2, onlyPage: 0 });
+    assert(r3.canvases.length === 1, 'onlyPage=0 应只产出 1 张画布，实际 ' + r3.canvases.length);
+    assert(r3.stats.pages === r1.canvases.length, 'stats.pages 仍应为总页数');
+    return { pass: true, detail: '基础=' + r1.canvases[0].width + ' 超采样=' + r2.canvases[0].width + ' onlyPage=' + r3.canvases.length + '/' + r3.stats.pages };
+  });
+
   await t('导入器：PDF 分页标记 + 扫描件（无文字层）明确报错', async function () {
     /* 伪 pdf.js：两页各有文字 → 应打 [1,2] 分页标记；随后两页皆空 → 应明确抛错 */
     function makePdf(spec) {

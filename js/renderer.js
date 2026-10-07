@@ -463,10 +463,18 @@
     var pages = paginate(lines, s);
     var canvases = [];
 
+    /* 导出用超采样：按 K 倍分辨率绘制。布局仍在基础坐标系里算（换行/分页与预览逐字一致），
+       只是把画布放大 K 倍、再整体 ctx.scale(K,K) → 位图真正更清晰，
+       而不是把低分辨率画布拉伸放大（后者只会变糊）。预览走 K=1，故预览不受影响。 */
+    var K = Math.max(1, Math.min(4, Math.round(opts.scale || 1)));
+    var only = (opts.onlyPage != null) ? opts.onlyPage : -1;   // 只光栅化指定页（用于单页高分辨率 PNG 导出）
+
     for (var p = 0; p < pages.length; p++) {
+      if (only >= 0 && p !== only) continue;
       var cv = document.createElement("canvas");
-      cv.width = s.pageWidth; cv.height = s.pageHeight;
+      cv.width = s.pageWidth * K; cv.height = s.pageHeight * K;
       var ctx = cv.getContext("2d");
+      if (K !== 1) ctx.scale(K, K);
       ctx.textBaseline = "alphabetic";
 
       var paper = global.InkPaper.byId(s.paper);
@@ -569,7 +577,7 @@
         layoutMs: Math.round(tLayout - t0),
         mathMs: Math.round(tMath - tLayout),
         totalMs: Math.round(tEnd - t0),
-        lineCount: lines.length, mathCount: mathMap.size, pages: canvases.length
+        lineCount: lines.length, mathCount: mathMap.size, pages: pages.length
       }
     };
   }

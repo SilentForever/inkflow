@@ -54,5 +54,11 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 ## 右栏（预览列）
 头部 `col-head` 只留 **状态徽标 `#busy` + 自动开关**；动作按钮全在底部 `.preview-foot`（翻页 `.pager` + `#regenerate` + `#exportPng` + `#exportPdf`）。画布区 `.preview-stage` 用点阵网格底纹；空状态 `.preview-empty` 分级（`.pe-ico/.pe-title/.pe-sub/.pe-hint`）。
 
+## 导出：超采样重渲染（真正高清，非拉伸）
+- 预览画布固定 1240×1754（A4，K=1）；**导出时不复用预览画布**，而是 `InkRender.render(blocks, toSettings(), {scale:K})` 重新光栅化：画布尺寸 ×K、整体 `ctx.scale(K,K)`。**布局仍在基础坐标系计算 → 换行/分页与预览逐字一致**，只是位图真正更清晰。
+- `js/app.js` 新增 `renderHiRes(text, opts)`；PNG 用 `{scale:3, onlyPage:currentPage}`（只画当前页，`renderer` 的 `opts.onlyPage` 跳过其余页，`stats.pages` 仍报总页数），PDF/批量用 `{scale:2}` + `exportPDF(..., {dpi:300})`。
+- **坑**：旧实现是 `exportPNG(cv, …, 2)` 把 1240px 画布 `drawImage` 放大到 2480 → 只是变糊。实测同一最终分辨率下，超采样的拉普拉斯方差（高频能量）约为拉伸法的 **7.9×**（43 → 340）。
+- 画布像素↔物理尺寸：`exportPDF` 按「画布像素 ÷ dpi」得物理尺寸，故 `dpi` 越高页面越清晰、物理大小不变；`renderer` 的 `K` 与 `exporter` 的 `dpi` 必须匹配（K=2 ↔ dpi=300）。
+
 ## 状态
 全部内存态；队列结果按 `settingsHash` 缓存（`js/queue.js`）；刷新即清空。

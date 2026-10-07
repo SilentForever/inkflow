@@ -224,6 +224,15 @@
     }
   }
 
+  /* 导出用高分辨率重渲染：布局与预览一致，仅按 K 倍超采样光栅化（真正更清晰）。
+     onlyPage 指定时只画该页（单页 PNG 导出）。 */
+  async function renderHiRes(text, opts) {
+    opts = opts || {};
+    var blocks = global.InkParser.parse(text);
+    var s = toSettings();
+    return await global.InkRender.render(blocks, s, opts);
+  }
+
   function countDegraded(lines) {
     var n = 0;
     for (var i = 0; i < lines.length; i++) {
@@ -426,14 +435,25 @@
     var expPng = $("exportPng");
     if (expPng) expPng.addEventListener("click", async function () {
       if (!pages.length) return toast("没有可导出的内容", "warn");
-      try { await global.InkExport.exportPNG(pages[currentPage], "inkflow-" + stamp() + "-p" + (currentPage + 1) + ".png", 2); toast("PNG 已导出（第 " + (currentPage + 1) + " 页）", "ok"); }
+      try {
+        setBusy(true);
+        var hi = await renderHiRes(state.docText, { scale: 3, onlyPage: currentPage });
+        await global.InkExport.exportPNG(hi.canvases[0], "inkflow-" + stamp() + "-p" + (currentPage + 1) + ".png", 1);
+        toast("PNG 已导出（第 " + (currentPage + 1) + " 页，高分辨率）", "ok");
+      }
       catch (e) { toast("导出失败：" + e.message, "err"); }
+      finally { setBusy(false); }
     });
 
     var expPdf = $("exportPdf");
     if (expPdf) expPdf.addEventListener("click", async function () {
       if (!pages.length) return toast("没有可导出的内容", "warn");
-      try { setBusy(true); await global.InkExport.exportPDF(pages, "inkflow-" + stamp() + ".pdf", { dpi: 150, quality: 0.92 }); toast("PDF 已导出（" + pages.length + " 页）", "ok"); }
+      try {
+        setBusy(true);
+        var hi = await renderHiRes(state.docText, { scale: 2 });   // 2×150 = 300 DPI
+        await global.InkExport.exportPDF(hi.canvases, "inkflow-" + stamp() + ".pdf", { dpi: 300, quality: 0.92 });
+        toast("PDF 已导出（" + hi.canvases.length + " 页，300 DPI）", "ok");
+      }
       catch (e) { toast("导出失败：" + e.message, "err"); }
       finally { setBusy(false); }
     });
@@ -657,11 +677,15 @@
     if ($("queueExport")) $("queueExport").addEventListener("click", async function () {
       var sel = global.InkQueue.checked();
       if (!sel.length) return toast("没有可导出的已完成文档", "warn");
-      var all = global.InkQueue.allPagesOf(sel);
       try {
         setBusy(true);
-        await global.InkExport.exportPDF(all, "inkflow-batch-" + sel.length + "-" + stamp() + ".pdf", { dpi: 150, quality: 0.92 });
-        toast("已导出 " + sel.length + " 篇（共 " + all.length + " 页）", "ok", 3200);
+        var all = [];
+        for (var i = 0; i < sel.length; i++) {
+          var hi = await renderHiRes(sel[i].text, { scale: 2 });   // 每篇按 2×150 = 300 DPI 重渲染
+          all = all.concat(hi.canvases);
+        }
+        await global.InkExport.exportPDF(all, "inkflow-batch-" + sel.length + "-" + stamp() + ".pdf", { dpi: 300, quality: 0.92 });
+        toast("已导出 " + sel.length + " 篇（共 " + all.length + " 页，300 DPI）", "ok", 3200);
       } catch (e) { toast("导出失败：" + e.message, "err"); }
       finally { setBusy(false); }
     });

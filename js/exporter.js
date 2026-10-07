@@ -42,26 +42,26 @@
     return blob;
   }
 
-  /* 把 SVG 矢量重绘到 PDF：jsPDF 支持 addImage(SVG 需栅格化)，这里用高分辨率位图保证清晰 */
+  /* 高分辨率位图 PDF：画布已按目标倍率超采样（见 renderer 的 opts.scale），
+     这里按「物理页面 = 画布像素 / dpi」写入，故 dpi 越高页面越清晰、物理尺寸不变。 */
   async function exportPDF(canvases, filename, opts) {
     opts = opts || {};
     var jsPDFCtor = global.jspdf && global.jspdf.jsPDF;
     if (!jsPDFCtor && global.InkLoader) { await global.InkLoader.ensureJsPdf(); jsPDFCtor = global.jspdf && global.jspdf.jsPDF; }
     if (!jsPDFCtor) throw new Error("jsPDF 未加载");
-    var dpi = opts.dpi || 150;
-    var first = canvases[0];
+    var dpi = opts.dpi || 150;              // 150 DPI = 基础分辨率；画布若超采样 K 倍，导出即 K×150 DPI
     var pxToPt = 72 / dpi;
+    var type = (opts.imgType || "JPEG").toUpperCase();
+    var first = canvases[0];
     var wPt = first.width * pxToPt;
     var hPt = first.height * pxToPt;
     var doc = new jsPDFCtor({ unit: "pt", format: [wPt, hPt], orientation: wPt > hPt ? "landscape" : "portrait", compress: true });
     for (var i = 0; i < canvases.length; i++) {
       var cv = canvases[i];
-      if (i > 0) {
-        var pw = cv.width * pxToPt, ph = cv.height * pxToPt;
-        doc.addPage([pw, ph], pw > ph ? "landscape" : "portrait");
-      }
-      var data = cv.toDataURL("image/jpeg", opts.quality || 0.92);
-      doc.addImage(data, "JPEG", 0, 0, cv.width * pxToPt, cv.height * pxToPt, undefined, "FAST");
+      var pw = cv.width * pxToPt, ph = cv.height * pxToPt;
+      if (i > 0) doc.addPage([pw, ph], pw > ph ? "landscape" : "portrait");
+      var data = type === "PNG" ? cv.toDataURL("image/png") : cv.toDataURL("image/jpeg", opts.quality || 0.92);
+      doc.addImage(data, type, 0, 0, pw, ph, undefined, "FAST");
     }
     doc.save(filename);
     return doc;

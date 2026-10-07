@@ -15,7 +15,7 @@ node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
 ## 手动运行（单套）
 ```bash
 CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
-# 单元/集成（40 项）
+# 单元/集成（43 项）
 "$CHROME" --headless=new --disable-gpu --no-sandbox --allow-file-access-from-files --dump-dom --virtual-time-budget=100000 "file:///D:/转手写字体/tests/run-tests.html"
 # 准确率审计（42 篇 × 9 项 = 378）
 "$CHROME" ... --virtual-time-budget=200000 "file:///D:/转手写字体/tests/accuracy.html"
@@ -32,7 +32,7 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 `tests/e2e.html` 内嵌一份 index.html 的 body。**改了 index.html 的 DOM 必须重新同步 e2e 的 body**，否则结构断言失准。同步法：截取 `index.html` 的 `<body>…<script>` 之间内容，按 `[...idx.matchAll(/<script src="([^"]+)"/g)]` 原顺序重发 `<script src="../…">`。
 
 ## 最近一次基线（本轮，全绿）
-单元 **42/42**、e2e **30/30**、准确率 **378/378（100%）**；网络请求/本地存储 **0/0**。
+单元 **43/43**、e2e **30/30**、准确率 **378/378（100%）**；网络请求/本地存储 **0/0**。
 > 字体改 WOFF2 + 分批加载后，「徽标」断言改为轮询等待 `20/20`（默认字体先到，其余后台补齐）。
 
 ## 本轮（加载提速 / 左栏一体化 / 右栏精修）附加自检
