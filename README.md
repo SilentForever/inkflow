@@ -158,6 +158,8 @@ node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
 🎉 全部通过
 ```
 
+> 每套跑完即把结果落盘到 `tests/.run/report.json`（`{done, results:[{key,ok,total,pass,fail}]}`），便于被中断后排查或接入 CI；原始 DOM 存 `tests/.run/<key>.html`。
+
 也可单独手动运行（输出 `RESULTS_JSON:` / `ACC_JSON:` / `E2E_JSON:`）：
 
 ```bash

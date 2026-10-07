@@ -36,32 +36,45 @@ function findChrome() {
   return null;
 }
 
-/* 从 dump-dom 输出里按平衡括号扫描出 marker 后的 JSON 对象 */
+/* 从 dump-dom 输出里按平衡括号扫描出 marker 后的 JSON 对象。
+   注意：marker（如 E2E_JSON:）也可能出现在页面自身的 <script> 源码里，
+   且结果 <pre> 可能被 append 到 body 末尾 → 逐个出现位置尝试，返回首个能解析成对象的。 */
 function extractJson(html, marker) {
-  const k = html.indexOf(marker);
-  if (k < 0) return null;
-  const start = html.indexOf("{", k);
-  if (start < 0) return null;
-  let depth = 0, inStr = false, esc = false;
-  for (let i = start; i < html.length; i++) {
-    const ch = html[i];
-    if (inStr) {
-      if (esc) esc = false;
-      else if (ch === "\\") esc = true;
-      else if (ch === '"') inStr = false;
-      continue;
+  let from = 0;
+  while (true) {
+    const k = html.indexOf(marker, from);
+    if (k < 0) return null;
+    from = k + marker.length;
+    const start = html.indexOf("{", k);
+    if (start < 0) continue;
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < html.length; i++) {
+      const ch = html[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          try { const o = JSON.parse(html.slice(start, i + 1)); if (o && typeof o === "object") return o; } catch (e) {}
+          break;   /* 该处不是合法 JSON（多半是源码里的诱饵）→ 试下一个出现位置 */
+        }
+      }
     }
-    if (ch === '"') inStr = true;
-    else if (ch === "{") depth++;
-    else if (ch === "}") { depth--; if (depth === 0) { try { return JSON.parse(html.slice(start, i + 1)); } catch (e) { return null; } } }
   }
-  return null;
 }
 
 function runSuite(chrome, key) {
   const s = SUITES[key];
   const url = "file:///" + path.join(ROOT, s.page).replace(/\\/g, "/");
   fs.mkdirSync(TMP, { recursive: true });
+  const outFile = path.join(TMP, key + ".html");
+  try { fs.rmSync(outFile, { force: true }); } catch (e) {}   /* 先删旧结果，避免崩溃后残留旧文件被误读为“通过” */
   /* 每次用独立 profile，避免与残留 Chrome 进程争用单例锁（否则 dump-dom 静默失败） */
   const profile = path.join(TMP, "profile-" + key + "-" + process.pid + "-" + Date.now());
   const args = [
@@ -88,16 +101,22 @@ function main() {
   if (!chrome) { console.error("找不到 Chrome，请设置环境变量 CHROME 指向 chrome 可执行文件"); process.exit(2); }
   const want = process.argv.slice(2).filter((a) => SUITES[a]);
   const keys = want.length ? want : Object.keys(SUITES);
+  fs.mkdirSync(TMP, { recursive: true });
+  const reportFile = path.join(TMP, "report.json");
+  const flush = (results, done) => { try { fs.writeFileSync(reportFile, JSON.stringify({ chrome, done, results }, null, 2)); } catch (e) {} };
+  flush([], false);
   console.log("Chrome: " + chrome + "\n");
   const results = [];
   for (const k of keys) {
     process.stdout.write("▶ " + SUITES[k].label + " 运行中…");
     const res = runSuite(chrome, k);
     results.push(res);
+    flush(results, false);   /* 每套跑完即落盘：即便进程被杀，也能从 report.json 看出进度与结果 */
     console.log("\r" + (res.ok ? "✅" : "❌") + " " + res.label.padEnd(10, " ") +
       (res.err ? res.err : (res.pass + " / " + res.total + (res.extra ? "  " + res.extra : ""))));
   }
   const bad = results.filter((r) => !r.ok);
+  flush(results, true);
   console.log("\n" + (bad.length ? ("❌ 有 " + bad.length + " 套未通过") : "🎉 全部通过"));
   process.exit(bad.length ? 1 : 0);
 }

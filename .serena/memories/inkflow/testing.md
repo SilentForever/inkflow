@@ -8,6 +8,9 @@ node tests/run.js            # 全部三套；任一失败退出码非零
 node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
 ```
 `tests/run.js` 自动探测 Chrome（或读 `CHROME` 环境变量），跑完按**平衡括号扫描**解析 `RESULTS_JSON:`/`ACC_JSON:`/`E2E_JSON:`，把原始 DOM 存到 `tests/.run/<key>.html`（已 gitignore）。**每套用独立 `--user-data-dir`**——否则残留 Chrome 争用单例锁会让 `--dump-dom` 静默失败（stdout 只有 updater 噪声、无 marker）。遇此现象先 `Stop-Process -Name chrome -Force`。
+> **解析陷阱**：`E2E_JSON:` 这个串**也出现在 e2e 页自身的 `<script>` 源码里**（拼结果那行），而结果 `<pre>` 被 append 到 body 末尾 → 必须**逐个 marker 出现位置尝试、取首个能 `JSON.parse` 成对象的**；只取第一个 `indexOf` 会命中源码诱饵而解析失败（unit/acc 因 `<pre>` 在脚本之前而侥幸没踩）。
+> **`report.json`**：runner 每跑完一套就把 `{chrome,done,results}` 落盘到 `tests/.run/report.json`（每套后、结束时各写一次）→ 即使进程被杀/输出被吞，也能从该文件读出进度与结论。
+> **后台包装层假象**：本机 shell 用 `background=true` 跑 `node … > log 2>&1` 时，**node 的 stdout 会被吞掉、`$?` 被污染成 1**（实测：纯 `node -e 'console.log(...)'` 后台跑也得到 `EXIT=1` 且日志只有 `stdin is not a tty`，但副作用文件照写）。所以**不要**用 `FULL_EXIT=1` 判断 runner 失败——**只信 `report.json` / 前台运行的输出**。
 
 ## 手动运行（单套）
 ```bash
