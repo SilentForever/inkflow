@@ -1,4 +1,4 @@
-/* InkFlow · 导出：PNG / 矢量 PDF（纯本地，无上传） */
+/* InkFlow · 导出：PNG / 高分辨率位图 PDF（纯本地，无上传） */
 (function (global) {
   "use strict";
 
