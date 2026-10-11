@@ -63,6 +63,10 @@
   async function registerFonts() {
     var results = [];
     for (var i = 0; i < FONT_FILES.length; i++) results.push(await loadFontEntry(FONT_FILES[i]));
+    /* 字体加载后，公式手写化之前可能已缓存过「字形缺失」的探测结果（_cov）
+       与渲染结果（cache）——那会把公式永久留成印刷体。这里一并清掉，
+       保证「换字体 / 字体就绪后」公式重算。 */
+    try { if (global.InkMath && global.InkMath.clearCache) global.InkMath.clearCache(); } catch (e) {}
     return results;
   }
   /* 按家族名加载某个尚未加载的内置字体（字体下拉按需加载用） */

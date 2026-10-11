@@ -17,6 +17,9 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 - 关键原因：**SVG 以 `<img>`/data-url 载入处于隔离环境，读不到页面 Web 字体**，所以 `<text>` 放进 SVG 永远不是手写体 → 必须 canvas 画。
 - **字号推导**：沿 `use → g → … → svg` 累积 2×2 矩阵 M，`字号 = fontPx × sc`，`sc = sqrt(|det M|)`；基线 `baseY = (M.f − vbY) × uScale`。**不要用「墨迹包围盒高度」反推字号**——会把被 MathJax 拉长的括号/根号画得过大。`EX_RATIO=0.5`、`SS=2`。上下标自然得到 0.707×。
 - 字体链 `mathFontsOf`（js/renderer.js）：**所选（统一）字体 → 拉丁手写兜底(LATIN_FALLBACK) → 中文手写兜底(CJK_FALLBACK)**；仍缺字符则保留 MathJax 原字形兜底（内容绝不丢失）。公式字号 `formulaScaleOf(s.unifyKey||s.fontKey)` 随所选字体自适应。**历史坑**：早期只挂中文字体链 → 换英文字体时公式纹丝不动；后改为「英文字体→中文字体」双链，**本轮起全篇统一一款，只挂所选字体**。
+- **根号（`data-c=221A`）单独分支**：MathJax 的根号 = `<use 勾>` + 一条 `<rect>` 上横线（vinculum）；**手写字体自带的 `√` 字形不含上横线**。旧代码按「字形字号」缩放勾、画在 MathJax 勾框中心 → 勾缩到约 0.6×、够不到 rect 横线 → 渲染成「孤零零一条横线」（用户报的「根号有问题」）。**修复**：勾按 **MathJax 勾框高度** 缩放（`k=(by1-by0)/(gA+gD)`，clamp 0.45–1.9）、墨迹底对齐勾框底、墨迹左缘对齐勾框左缘；再把勾右侧那条细 rect 作为上横线，左端接到勾顶（`x0=min(rect.l, hook.cx+gW*k*0.9)`）、右端保持原长（覆盖被开方数）。认领的 rect 在后续 rect 循环里 `used` 跳过。三次根/嵌套根/根号内分数均走同一路径。
+- **回退图片 `buildFallback` 必须保留 `<defs>` 里的 `<path>`**：旧代码 `querySelectorAll("rect,line,path")` 把 defs 内的字形定义也删了 → `<use>` 指向的 path 消失 → 回退字形整片空白（无 `√` 字形的字体下勾直接不见）。现只删非 defs 的 `rect/line/path`（`el.closest("defs")` 跳过）。
+- **`clearCache()` 现同时清 `_cov`（字形覆盖探测缓存）**；`InkApp.registerFonts()` 结束后调用它。否则字体加载前渲染的公式会被 `_cov` 永久缓存成印刷体（换字体也不重算）。
 
 ## 字体
 - **20 款内置（11 中文 + 9 英文）**，`fonts/` 为 WOFF2，共约 20.8MB。**默认 `Zen Kurenaido`**（全篇统一一款）。

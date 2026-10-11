@@ -588,6 +588,44 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: '手绘 ' + drawn + ' 个 / 回退图片 ' + (r.fallbackSvg ? '有' : '无') };
   });
 
+  await t('根号：勾不被缩小、与上横线相接，且横线覆盖被开方数', async function () {
+    await window.InkApp.registerFonts();
+    try { await document.fonts.ready; } catch (e) {}
+    var fams = window.InkRender.mathFontsOf({ unifyKey: 'zenkurenaido' });
+    var r = window.InkMath.render('\\sqrt{b^2-4ac}', 30, '#000', 0, 7, { handFonts: fams });
+    assert(r, 'render failed');
+    var hook = null, maxCx = 0;
+    (r.glyphs || []).forEach(function (g) {
+      if (g.ch === '\u221A') hook = g;
+      else if (g.cx > maxCx) maxCx = g.cx;
+    });
+    assert(hook, '根号勾（√）应被手写重绘');
+    assert(r.stat.kept === 0, '含 √ 的手写字体不应触发回退，实际 kept=' + r.stat.kept);
+    assert(r.lines.length === 1, '根号应只产出一条上横线，实际 ' + r.lines.length);
+    /* 旧 bug：勾按字号(30px)缩放后被画在 MathJax 勾框中心，缩到 ~0.6×（≈18px），
+       够不到横线 → 表现为「孤零零一条横线」。修复后勾按 MathJax 勾框高度放大，
+       必然 > 正文字号。 */
+    assert(hook.size > 30 * 1.05, '根号勾不应被缩小（旧 bug 缩到 ~0.6×），实际 size=' + hook.size.toFixed(1));
+    var ln = r.lines[0];
+    assert(ln.x0 <= hook.cx + hook.size * 0.5, '上横线左端应紧接勾（不得悬空在勾右侧），line.x0=' + ln.x0.toFixed(1) + ' hook.cx=' + hook.cx.toFixed(1));
+    assert(ln.x1 >= maxCx, '上横线右端应覆盖被开方数，line.x1=' + ln.x1.toFixed(1) + ' 被开方数右缘≈' + maxCx.toFixed(1));
+    return { pass: true, detail: '勾 size=' + hook.size.toFixed(1) + '（>' + (30 * 1.05).toFixed(0) + '），横线 ' + ln.x0.toFixed(1) + '→' + ln.x1.toFixed(1) + ' 覆盖被开方数' };
+  });
+
+  await t('根号：缺 √ 字形回退时保留字形路径（回归 <defs> 被误删）', async function () {
+    await window.InkApp.registerFonts();
+    try { await document.fonts.ready; } catch (e) {}
+    var fams = ['Caveat', 'Patrick Hand'];   /* 均不含 U+221A，强制走 MathJax 回退 */
+    var r = window.InkMath.render('\\sqrt{b^2-4ac}', 30, '#000', 0, 7, { handFonts: fams });
+    assert(r, 'render failed');
+    assert(r.stat.kept > 0, '缺 √ 字体应触发回退，实际 kept=' + r.stat.kept);
+    assert(r.fallbackSvg, '回退时应生成 SVG 图片');
+    assert(r.fallbackSvg.indexOf('<use') >= 0, '回退图片应含原字形 <use>');
+    assert(r.fallbackSvg.indexOf('<defs') >= 0, '回退图片必须保留 <defs>（删掉会导致字形整片消失）');
+    assert(r.fallbackSvg.indexOf('<path') >= 0, '回退图片必须保留字形 <path>（旧版把 defs 里的 path 一并删掉 → 空白）');
+    return { pass: true, detail: '缺 √ 时回退图片保留 ' + (r.fallbackSvg.match(/<path/g) || []).length + ' 条字形路径' };
+  });
+
   await t('颜色：公式与正文使用同一墨色（回归）', async function () {
     await window.InkApp.registerFonts();
     try { await document.fonts.ready; } catch (e) {}

@@ -153,7 +153,7 @@ node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
 输出示例：
 
 ```
-✅ 单元 / 集成   48 / 48
+✅ 单元 / 集成   50 / 50
 ✅ 准确率审计    378 / 378  准确率 100%
 ✅ 端到端 UI     31 / 31
 🎉 全部通过
@@ -166,7 +166,7 @@ node tests/run.js unit acc   # 只跑指定套件（unit / acc / e2e）
 ```bash
 CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 
-# 单元 / 集成测试（44 项）
+# 单元 / 集成测试（50 项）
 "$CHROME" --headless=new --disable-gpu --no-sandbox --dump-dom \
   --virtual-time-budget=100000 \
   "file:///D:/转手写字体/tests/run-tests.html"
@@ -182,7 +182,7 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
   "file:///D:/转手写字体/tests/e2e.html"
 ```
 
-**最近一次结果：单元 48 / 48 + 端到端 31 / 31 + 准确率审计 378 / 378（100%）全部通过**
+**最近一次结果：单元 50 / 50 + 端到端 31 / 31 + 准确率审计 378 / 378（100%）全部通过**
 
 | 维度 | 结果 |
 |---|---|
@@ -271,6 +271,12 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 4. 分数线 / 根号线 / 表格线重画成**带轻微起伏的曲线**；
 5. 叠加抖动，幅度受「公式手写度」滑杆控制。
 
+> **根号（√）单独处理**：MathJax 的根号由「勾 `<use>` + 上横线 `<rect>`」两部分组成，
+> 而手写字体自带的 `√` 字形**不含**上横线。若把勾按正文字号缩放，勾会缩到约 0.6×、
+> 够不到那条 rect 横线 —— 渲染成「孤零零一条横线」。现在改为：勾按 **MathJax 勾框高度**
+> 缩放、墨迹底对齐勾框底（保证勾顶正好顶到横线），并把那条 rect 横线的左端接到勾顶、
+> 右端保持原长（完整覆盖被开方数）。三次根 / 嵌套根 / 根号内分数均走同一路径。
+
 > **为什么必须画在 canvas 上？**
 > SVG 以 `<img>` 载入时处于**隔离环境，读不到页面的 Web 字体**（浏览器会静默换成系统字体），
 > 所以不能把 `<text>` 放进 SVG——那样数学符号永远是系统字形、尺寸也对不上。
@@ -291,6 +297,8 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 | 1 | 换字体 | ∠ △ ∵ ∴ √ ∫ ∑ π → Zen Kurenaido |
 | 2 | **组合字形**（两个手写字符拼合） | ≅ → `∼` + `=` |
 | 3 | 保留 MathJax 原字形（作为一张图片叠加） | 极少数生僻符号 |
+
+> **回退图片必须保留 `<defs>` 里的字形路径**：旧版把 SVG 里的 `path` 一并删掉，导致 `<use>` 指向的定义消失、回退字形整片空白（例如无 `√` 字形的字体下，勾直接不见）。现已只删「空的分数线 / 根号线」，保留字形定义。
 
 第 3 级是**安全网**：宁可字形不像手写，也绝不丢内容或画错。
 

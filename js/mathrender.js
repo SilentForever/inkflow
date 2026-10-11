@@ -23,7 +23,7 @@
   function markReady() { ready = true; failed = false; }
   function markFailed() { failed = true; }
   function stats() { return { ready: ready, failed: failed, available: isAvailable(), cached: cache.size, scribbled: scribCache.size }; }
-  function clearCache() { cache.clear(); imgCache.clear(); scribCache.clear(); }
+  function clearCache() { cache.clear(); imgCache.clear(); scribCache.clear(); _cov = {}; }
   function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
 
   function readEx(svg) {
@@ -255,6 +255,16 @@
       return { size: size, asc: a * size / REF, desc: d * size / REF };
     }
 
+    /* 先量出所有 rect（分数线 / 根号上横线），供根号几何使用 */
+    var _rects = live.querySelectorAll("rect");
+    var rectBoxes = [];
+    for (var _r = 0; _r < _rects.length; _r++) {
+      var _rb = _rects[_r].getBoundingClientRect();
+      rectBoxes.push({ l: _rb.left - sr.left, r: _rb.right - sr.left,
+                       t: _rb.top - sr.top, b: _rb.bottom - sr.top,
+                       w: _rb.width, h: _rb.height, used: false });
+    }
+
     var uses = live.querySelectorAll("use");
     for (var i = 0; i < uses.length; i++) {
       var u = uses[i], b = u.getBoundingClientRect();
@@ -272,6 +282,49 @@
       }
       var sc = Math.sqrt(Math.abs(M.a * M.d - M.b * M.c)) || 1;
       var baseY = (M.f - vbY) * uScale;
+
+      if (code === "221A" || ch === "\u221A") {
+        /* 根号 = 勾 + 上横线。手写字体自带的「√」字形**不含**上横线，而 MathJax 的
+           根号是 <use 勾> + <rect 上横线> 两部分。旧代码把勾按字号缩放后画在
+           MathJax 勾框中心，勾会缩到约 0.6×、够不到那条 rect 横线 —— 于是渲染成
+           「孤零零一条横线，勾缩在左下角」，就是用户看到的「根号有问题」。
+           这里改为：① 勾按「MathJax 勾框高度」缩放并让**墨迹底对齐勾框底**，
+           保证勾顶正好顶到横线；② 找到勾右侧那条细 rect 作为上横线，
+           左端接到勾顶，右端保持 MathJax 原长度（完整覆盖被开方数）。 */
+        var bx0 = b.left - sr.left, by0 = b.top - sr.top, bx1 = b.right - sr.left, by1 = b.bottom - sr.top;
+        var radFam = pickFont(fams, "\u221A");
+        if (!radFam) { kept.push(u); continue; }
+        var mfont = meas2();
+        mfont.font = REF + 'px "' + radFam + '"';
+        var mts = mfont.measureText("\u221A");
+        var gA = mts.actualBoundingBoxAscent || REF * 0.9;
+        var gD = mts.actualBoundingBoxDescent || 0;
+        var gW = mts.width || REF * 0.5;
+        var k = (gA + gD) > 0 ? (by1 - by0) / (gA + gD) : 1;
+        k = Math.max(0.45, Math.min(1.9, k));
+        var radSize = REF * k;
+        var radBaseY = by1 - gD * k;      /* 墨迹底对齐 MathJax 勾底 */
+        var radCx = bx0 + (gW * k) / 2;   /* 墨迹左缘对齐 MathJax 勾左缘 */
+        glyphs.push({ ch: "\u221A", fam: radFam, size: radSize, cx: radCx, baseY: radBaseY, rot: 0 });
+        /* 找上横线：在勾右侧、纵向贴近勾顶的细 rect */
+        var ri = -1, rbest = 1e9;
+        for (var rj = 0; rj < rectBoxes.length; rj++) {
+          var RB = rectBoxes[rj];
+          if (RB.w < 3 || RB.h > Math.max(14, fontPx * 0.35)) continue;  /* 只要细横线 */
+          if (RB.l <= bx0 + 2) continue;                       /* 必须在勾右侧 */
+          if (RB.t > by0 + 8 || RB.b < by0 - 30) continue;     /* 纵向贴近勾顶 */
+          var dd = Math.abs(RB.t - by0);
+          if (dd < rbest) { rbest = dd; ri = rj; }
+        }
+        if (ri >= 0) {
+          var RBv = rectBoxes[ri]; RBv.used = true;
+          var linkX = bx0 + gW * k * 0.9;                      /* 勾顶附近起笔 */
+          lines.push({ type: "bezier", x0: Math.min(RBv.l, linkX), x1: RBv.r,
+                       y0: RBv.t + RBv.h / 2, bend: Math.max(0.7, RBv.h) * 0.45,
+                       w: Math.max(1.0, RBv.h) });
+        }
+        continue;
+      }
 
       var comp = COMPOSITES[code];
       if (comp) {
@@ -293,12 +346,11 @@
 
     var rects = live.querySelectorAll("rect");
     for (var r = 0; r < rects.length; r++) {
-      var rc = rects[r], rb = rc.getBoundingClientRect();
-      if (rb.width <= 0) continue;
-      var yt = rb.top - sr.top, yb = rb.bottom - sr.top;
-      lines.push({ type: "bezier", x0: rb.left - sr.left, x1: rb.right - sr.left,
-                   y0: (yt + yb) / 2, bend: Math.max(0.7, yb - yt) * 0.45,
-                   w: Math.max(0.7, yb - yt) });
+      var RB2 = rectBoxes[r];
+      if (!RB2 || RB2.used || RB2.w <= 0) continue;   /* 已被根号认领的上横线跳过 */
+      lines.push({ type: "bezier", x0: RB2.l, x1: RB2.r,
+                   y0: (RB2.t + RB2.b) / 2, bend: Math.max(0.7, RB2.b - RB2.t) * 0.45,
+                   w: Math.max(0.7, RB2.b - RB2.t) });
     }
     var lns = live.querySelectorAll("line");
     for (var li = 0; li < lns.length; li++) {
@@ -332,9 +384,15 @@
         if (all[k].parentNode) all[k].parentNode.removeChild(all[k]);
       }
     }
-    /* 去掉空的分数线/根号线 */
+    /* 去掉空的分数线/根号线（但**必须保留 <defs> 里的字形路径**，
+       否则 <use> 指向的 path 被删，回退字形会整片消失 —— 这正是旧版
+       「根号勾 / 减号等回退字形渲染成空白」的根因）。 */
     var rts = live.querySelectorAll("rect, line, path");
-    for (var q = 0; q < rts.length; q++) if (rts[q].parentNode) rts[q].parentNode.removeChild(rts[q]);
+    for (var q = 0; q < rts.length; q++) {
+      var el = rts[q];
+      if (el.closest && el.closest("defs")) continue;   /* defs 内的字形定义不动 */
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }
     var html = live.outerHTML;
     document.body.removeChild(host);
     return html;
