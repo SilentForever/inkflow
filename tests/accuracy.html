@@ -11,7 +11,7 @@
   var R=[]; function add(doc,chk,ok,det){ R.push({doc:doc,chk:chk,ok:!!ok,det:det||""}); }
   await window.InkApp.registerFonts(); await document.fonts.ready;
   await new Promise(function(res){var t0=Date.now();(function p(){if(window.InkMath.isAvailable())return res();if(Date.now()-t0>25000)return res();setTimeout(p,100)})();});
-  var S={pageSize:"a4",paper:"ruled",fontKey:"mashanzheng",fontSize:28,lineHeight:1.9,letterSpacing:0.3,
+  var S={pageSize:"a4",paper:"ruled",fontKey:"mashanzheng",unifyKey:"mashanzheng",fontSize:28,lineHeight:1.9,letterSpacing:0.3,
     jitter:1.1,rotateDeg:0.55,sizeVary:0.02,baselineDrift:0.7,inkColor:"#1b2a5e",inkAmount:0.93,inkVary:0.09,
     formulaScribble:0.5,formulaScale:1,seed:20240517,marginTop:88,marginBottom:79,marginLeft:88,marginRight:70,
     showHeader:true,headerText:"作业",showDate:false,showFooter:true,showTotalPages:true};

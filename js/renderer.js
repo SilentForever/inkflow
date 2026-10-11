@@ -48,16 +48,31 @@
   }
   var MONO = '"Consolas", "Courier New", monospace';
 
-  /* ---------- 统一笔迹：可选的「同一款」手写字体清单 ----------
-   * 开启「统一笔迹」后，中英文 / 数字 / 公式符号都用**同一款**手写字体，
-   * 只从「中文与拉丁字形都较全」的手写字体里挑，避免中英风格割裂。
-   * 顺序：中文手写（通常也含拉丁与数字）在前，纯拉丁手写在后。 */
+  /* ---------- 统一笔迹：全篇同一款手写字体 ----------
+   * 中英文 / 数字 / 公式符号都用**同一款**手写字体，只列「中文与拉丁（含数字、
+   * 常用数学符号）字形都较全」的字体，避免中英风格割裂。顺序：
+   *   5 款全符号覆盖（含 √ Δ ± ×）→ 其余中文手写（含拉丁+数字）→ 系统楷体。
+   * 纯拉丁字体不含中文字形，会把中文静默回退成印刷体，故不列入。 */
   var UNIFY_ORDER = [
-    "zenkurenaido", "mplusround", "pottaone", "zenmaru", "yomogi", "kleeone",
-    "mashanzheng", "longcang", "zhimangxing", "liujianmaocao",
-    "caveat", "patrick", "indie", "kalam", "shadows", "architects", "gloria", "reenie", "rocksalt"
+    "zenkurenaido", "mplusround", "yomogi", "kleeone", "zenmaru",
+    "pottaone", "mashanzheng", "longcang", "zhimangxing", "liujianmaocao",
+    "kai", "stxingkai"
   ];
   var UNIFY_DEFAULT = "zenkurenaido";
+  /* 「统一笔迹」字体下拉：全部可用（含用户自定义）；按 UNIFY_ORDER 排序。 */
+  function fontsForUnify() {
+    var out = [], seen = {};
+    for (var k in FONTS) {   /* 用户自定义字体置顶 */
+      if (FONTS[k].custom) { out.push({ key: k, label: FONTS[k].label }); seen[k] = 1; }
+    }
+    for (var i = 0; i < UNIFY_ORDER.length; i++) {
+      var key = UNIFY_ORDER[i], f = FONTS[key];
+      if (!f || seen[key]) continue;
+      if (f.sys && !fontAvailable(f.family)) continue;   /* 系统字体没装则隐藏 */
+      out.push({ key: key, label: f.label });
+    }
+    return out;
+  }
 
   var PAGE_SIZES = {
     a4:     { w: 1240, h: 1754, label: "A4 竖版" },
@@ -87,23 +102,16 @@
     return { css: f.css, cjk: cjk, key: key };
   }
 
-  /* 统一笔迹：把「中文用中文字体 / 英文用英文字体」合并成**同一款**字体。
-     选一款中英文（含数字）都尽量覆盖的手写字体，返回其 key。
-     用户显式选择（s.unifyKey）优先；否则用默认推荐款。 */
+  /* 当前字体 key：全篇统一一款（中文 / 英文 / 数字 / 公式同一款） */
   function unifyKeyOf(s) {
-    if (!s || !s.unify) return null;
+    if (!s) return UNIFY_DEFAULT;
     var want = s.unifyKey;
     if (want && FONTS[want]) return want;
     for (var i = 0; i < UNIFY_ORDER.length; i++) if (FONTS[UNIFY_ORDER[i]]) return UNIFY_ORDER[i];
     return UNIFY_DEFAULT;
   }
-
-  /* 当前应使用的字体 key：统一笔迹时中英文都用同一款 */
   function fontKeyFor(ch, s) {
-    var uk = unifyKeyOf(s);
-    if (uk) return uk;
-    var cjk = U.isCJK(ch);
-    return cjk ? (s.fontKeyCJK || s.fontKey) : (s.fontKeyLat || s.fontKey);
+    return unifyKeyOf(s) || s.fontKey;
   }
 
   /* 像 Word 一样：可加粗 / 斜体。返回带样式前缀的 font 简写片段。 */
@@ -173,12 +181,10 @@
   var CJK_FALLBACK = ["MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
   function mathFontsOf(s) {
     var uk = unifyKeyOf(s);
-    var cjkFam = (FONTS[uk || s.fontKeyCJK || s.fontKey] || {}).family;
-    var latFam = (FONTS[uk || s.fontKeyLat || s.fontKey] || {}).family;
+    var fam = (FONTS[uk] || FONTS[UNIFY_DEFAULT] || {}).family;
     var list = [];
     function add(f) { if (f && list.indexOf(f) < 0) list.push(f); }
-    if (uk) { add(latFam); add(cjkFam); }   /* 统一笔迹：公式也用同一款 */
-    else { add(latFam); add(cjkFam); }      /* 默认：数字/拉丁优先英文字体，中文用中文字体 */
+    add(fam);   /* 全篇同一款字体放最前；缺字的数学符号再走手写兜底（绝不回退印刷体） */
     for (var i = 0; i < LATIN_FALLBACK.length; i++) add(LATIN_FALLBACK[i]);
     for (var j = 0; j < CJK_FALLBACK.length; j++) add(CJK_FALLBACK[j]);
     return list;
@@ -475,8 +481,8 @@
     /* 文字缩放（像 Word 的字号）只影响正文，不影响页面尺寸 */
     s.fontSize = Math.max(8, Math.round(s.fontSize * (s.textScale || 1)));
     s.lineHeightPx = s.fontSize * s.lineHeight;
-    /* 公式字号随**英文字体**的视觉比例自适应（公式里数字/拉丁为主） */
-    var fscale = formulaScaleOf(s.fontKeyLat || s.fontKey) * (s.formulaScale || 1);
+    /* 公式字号随所选（统一）字体的视觉比例自适应（公式里数字/拉丁为主） */
+    var fscale = formulaScaleOf(s.unifyKey || s.fontKey) * (s.formulaScale || 1);
     s.formulaPx = s.fontSize * fscale;
 
     /* 「按原文大小」关闭时清掉块字号标记 → 全文统一字号（队列转写同样受此控制） */
@@ -696,7 +702,7 @@
     ctx.globalAlpha = U.clamp(s.inkAmount * 0.8, 0.1, 1);
     ctx.fillStyle = textColorOf(s);
     var fs = Math.max(11, s.fontSize * 0.42);
-    ctx.font = styledFont(fs, fontCssOf(s.fontKeyCJK || s.fontKey), s);
+    ctx.font = styledFont(fs, fontCssOf(s.unifyKey || s.fontKey), s);
     ctx.textBaseline = "alphabetic";
     if (s.showHeader && s.headerText) {
       ctx.textAlign = "left";
@@ -734,19 +740,6 @@
       }
       return out;
     },
-    /* 「统一笔迹」下拉：只列出适合中英文同款的手写字体（按 UNIFY_ORDER 排序） */
-    fontsForUnify: function () {
-      var out = [], seen = {};
-      for (var k in FONTS) {   /* 用户自定义字体置顶 */
-        if (FONTS[k].custom) { out.push({ key: k, label: FONTS[k].label }); seen[k] = 1; }
-      }
-      for (var i = 0; i < UNIFY_ORDER.length; i++) {
-        var key = UNIFY_ORDER[i], f = FONTS[key];
-        if (!f || seen[key]) continue;
-        if (f.sys && !fontAvailable(f.family)) continue;
-        out.push({ key: key, label: f.label });
-      }
-      return out;
-    }
+    fontsForUnify: fontsForUnify
   };
 })(typeof window !== "undefined" ? window : this);

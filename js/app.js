@@ -81,10 +81,7 @@
     pageSize: "a4",
     paper: "ruled",
     fontKey: "zenkurenaido",
-    fontKeyCJK: "zenkurenaido",
-    fontKeyLat: "caveat",
-    unifyFont: false,         // 统一笔迹：中英文/数字/公式都用同一款手写字体
-    unifyKey: "zenkurenaido", // 统一笔迹所用字体
+    unifyKey: "zenkurenaido",   // 全篇统一字体：中文/英文/数字/公式同一款
     fontSize: 28,
     lineHeight: 1.9,
     letterSpacing: 0.3,
@@ -115,9 +112,8 @@
   function toSettings() {
     var m = state.margin;
     return {
-      pageSize: state.pageSize, paper: state.paper, fontKey: state.fontKey,
-      fontKeyCJK: state.fontKeyCJK, fontKeyLat: state.fontKeyLat,
-      unify: state.unifyFont, unifyKey: state.unifyKey,
+      pageSize: state.pageSize, paper: state.paper, fontKey: state.unifyKey,
+      unify: true, unifyKey: state.unifyKey,
       fontSize: state.fontSize, lineHeight: state.lineHeight, letterSpacing: state.letterSpacing,
       jitter: state.jitter, rotateDeg: state.rotateDeg, sizeVary: state.sizeVary,
       baselineDrift: state.baselineDrift, inkColor: state.inkColor, inkAmount: state.inkAmount,
@@ -346,33 +342,10 @@
   }
 
   function initControls() {
-    /* ---------- 中英字体：分别选择 ---------- */
-    function fillFontSelect(selId, lang, current) {
-      var sel = $(selId);
-      if (!sel) return;
-      var list = global.InkRender.fontsByLang(lang);
-      sel.innerHTML = "";
-      for (var i = 0; i < list.length; i++) {
-        var o = document.createElement("option");
-        o.value = list[i].key; o.textContent = list[i].label;
-        sel.appendChild(o);
-      }
-      if (current) {
-        var has = false;
-        for (var k = 0; k < sel.options.length; k++) if (sel.options[k].value === current) has = true;
-        if (has) sel.value = current;
-      }
-      return sel;
-    }
-    state.fontKeyCJK = state.fontKeyCJK || "zenkurenaido";
-    state.fontKeyLat = state.fontKeyLat || "caveat";
-    state.unifyKey = state.unifyKey || "zenkurenaido";
-    fillFontSelect("fontCJK", "cjk", state.fontKeyCJK);
-    fillFontSelect("fontLat", "lat", state.fontKeyLat);
-    /* 统一笔迹下拉：只列适合中英文同款的手写字体 */
-    (function () {
+    /* ---------- 字体：全篇统一一款（中文 / 英文 / 数字 / 公式同一款） ---------- */
+    function fillUnifySelect(current) {
       var sel = $("fontUnify");
-      if (!sel) return;
+      if (!sel) return null;
       var list = global.InkRender.fontsForUnify();
       sel.innerHTML = "";
       for (var i = 0; i < list.length; i++) {
@@ -380,47 +353,23 @@
         o.value = list[i].key; o.textContent = list[i].label;
         sel.appendChild(o);
       }
-      sel.value = state.unifyKey;
-    })();
-    var selCJK = $("fontCJK"), selLat = $("fontLat");
-    function pickFont(sel, keyName, extra) {
-      var key = sel.value;
-      state[keyName] = key; if (extra) state.fontKey = key;
-      var fam = (global.InkRender.FONTS[key] || {}).family;
-      if (fam && !_hasFamily(fam)) {
-        /* 该字体尚未加载（分批加载中）：按需加载后再重绘 */
-        loadFontFamily(fam).then(function () { scheduleRender(true); }, function () { scheduleRender(true); });
-      } else {
-        scheduleRender(true);
-      }
+      var has = false;
+      for (var k = 0; k < sel.options.length; k++) if (sel.options[k].value === current) has = true;
+      sel.value = has ? current : (list[0] ? list[0].key : "zenkurenaido");
+      return sel;
     }
-    if (selCJK) selCJK.addEventListener("change", function () { pickFont(selCJK, "fontKeyCJK", true); });
-    if (selLat) selLat.addEventListener("change", function () { pickFont(selLat, "fontKeyLat"); });
-
-    /* ---------- 统一笔迹：中英文 / 数字 / 公式都用同一款字体 ---------- */
-    function applyUnify() {
-      var on = state.unifyFont;
-      var fc = $("fontFieldCJK"), fl = $("fontFieldLat"), fu = $("fontFieldUnify");
-      if (fc) fc.hidden = on;
-      if (fl) fl.hidden = on;
-      if (fu) fu.hidden = !on;
-      var fam = (global.InkRender.FONTS[state.unifyKey] || {}).family;
-      var go = function () { scheduleRender(true); };
-      if (on && fam && !_hasFamily(fam)) loadFontFamily(fam).then(go, go); else go();
-    }
-    var uChk = $("unifyFont");
-    if (uChk) {
-      uChk.checked = !!state.unifyFont;
-      uChk.addEventListener("change", function () { state.unifyFont = uChk.checked; applyUnify(); });
-    }
-    var uSel = $("fontUnify");
+    state.unifyKey = state.unifyKey || "zenkurenaido";
+    var uSel = fillUnifySelect(state.unifyKey);
+    state.unifyKey = uSel ? uSel.value : state.unifyKey;
+    state.fontKey = state.unifyKey;
     if (uSel) uSel.addEventListener("change", function () {
-      state.unifyKey = uSel.value;
+      state.unifyKey = uSel.value; state.fontKey = uSel.value;
       var fam = (global.InkRender.FONTS[state.unifyKey] || {}).family;
       var go = function () { scheduleRender(true); };
+      /* 该字体尚未加载（分批加载中）：按需加载后再重绘 */
       if (fam && !_hasFamily(fam)) loadFontFamily(fam).then(go, go); else go();
     });
-    applyUnify();
+
 
     /* ---------- 手写程度：三档 ---------- */
     function applyHand(level) {
@@ -531,16 +480,7 @@
         await face.load();
         document.fonts.add(face);
         global.InkRender.addCustomFont("userfont", family, "自定义：" + f.name.slice(0, 18));
-        state.fontKeyCJK = "userfont"; state.fontKey = "userfont";
-        state.unifyKey = "userfont";
-        var sel2 = $("fontCJK");
-        if (sel2) {
-          var opt = document.createElement("option");
-          opt.value = "userfont";
-          opt.textContent = "自定义：" + f.name.slice(0, 18);
-          sel2.appendChild(opt);
-          sel2.value = "userfont";
-        }
+        state.unifyKey = "userfont"; state.fontKey = "userfont";
         var selU = $("fontUnify");
         if (selU) {
           var optU = document.createElement("option");
@@ -874,8 +814,7 @@
 
     /* 2) 首屏已出：其余字体后台补齐，补齐后重绘一次（非默认字体即时可用） */
     loadRemainingFonts().then(function () {
-      if (state.fontKeyCJK && !BOOT_FAMILIES[state.fontKeyCJK]) scheduleRender(true);
-      if (state.fontKeyLat && !BOOT_FAMILIES[state.fontKeyLat]) scheduleRender(true);
+      if (state.unifyKey && !BOOT_FAMILIES[state.unifyKey]) scheduleRender(true);
     });
   }
 

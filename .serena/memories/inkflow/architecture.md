@@ -16,19 +16,19 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 - MathJax(tex-svg) 生成矢量 SVG → 隐藏离屏容器真实布局 → `getBoundingClientRect()` 读每个字形位置 → **在 canvas 上用手写字体重画字形**。
 - 关键原因：**SVG 以 `<img>`/data-url 载入处于隔离环境，读不到页面 Web 字体**，所以 `<text>` 放进 SVG 永远不是手写体 → 必须 canvas 画。
 - **字号推导**：沿 `use → g → … → svg` 累积 2×2 矩阵 M，`字号 = fontPx × sc`，`sc = sqrt(|det M|)`；基线 `baseY = (M.f − vbY) × uScale`。**不要用「墨迹包围盒高度」反推字号**——会把被 MathJax 拉长的括号/根号画得过大。`EX_RATIO=0.5`、`SS=2`。上下标自然得到 0.707×。
-- **字体链** `mathFontsOf`（js/renderer.js）：**英文字体 → 中文字体 → 拉丁兜底(LATIN_FALLBACK) → 中文兜底(CJK_FALLBACK)**。公式里的数字/拉丁字形优先用**英文**字体，中文用中文字体；仍缺字符则保留 MathJax 原字形兜底（内容绝不丢失）。公式字号 `formulaScaleOf(s.fontKeyLat||s.fontKey)` 随**英文**字体自适应。**历史坑**：早期只挂中文字体链 → 换英文字体时公式纹丝不动。
+- 字体链 `mathFontsOf`（js/renderer.js）：**所选（统一）字体 → 拉丁手写兜底(LATIN_FALLBACK) → 中文手写兜底(CJK_FALLBACK)**；仍缺字符则保留 MathJax 原字形兜底（内容绝不丢失）。公式字号 `formulaScaleOf(s.unifyKey||s.fontKey)` 随所选字体自适应。**历史坑**：早期只挂中文字体链 → 换英文字体时公式纹丝不动；后改为「英文字体→中文字体」双链，**本轮起全篇统一一款，只挂所选字体**。
 
 ## 字体
-- **20 款内置（11 中文 + 9 英文）**，`fonts/` 为 WOFF2，共约 20.8MB。中文默认 `Zen Kurenaido`，拉丁默认 `Caveat`；中英双下拉分别选。
-- **统一笔迹（`state.unifyFont` / `unifyKey`）**：开启后**中英文 / 数字 / 公式符号都用同一款**手写字体。`renderer` 的 `unifyKeyOf(s)`（用户选 `s.unifyKey`，否则 `UNIFY_DEFAULT`）+ `fontKeyFor(ch,s)` 决定每个字符的字体键；`mathFontsOf` 在统一时把同一款字体放到字体链最前。UI 见左栏第 1 行；`toSettings` 传 `unify`/`unifyKey`，`hashSettings` 纳入二者。**字号仍按原文层级**（`factor(b)` 不受影响）。
+- **20 款内置（11 中文 + 9 英文）**，`fonts/` 为 WOFF2，共约 20.8MB。**默认 `Zen Kurenaido`**（全篇统一一款）。
+- **全篇统一字体（`state.unifyKey`）**：工具栏只有一个「字体」下拉，选一款即**中文 / 英文 / 数字 / 公式符号都用同一款**。`renderer` 的 `unifyKeyOf(s)`（`s.unifyKey` 若有效，否则 `UNIFY_ORDER` 首个存在款 / `UNIFY_DEFAULT`）+ `fontKeyFor(ch,s)` 决定字符字体键；`mathFontsOf` 把该款放字体链最前。UI 见左栏第 1 行 `#fontUnify`（`fontsForUnify()` 填充，**只列中英文兼顾的字体**——纯拉丁字体不含中文字形，会把中文回退成印刷体）。`toSettings` 传 `fontKey`/`unify:true`/`unifyKey`，`hashSettings` 纳入二者。**字号仍按原文层级**（`factor(b)` 不受影响）。
 - 字体文件清单：`js/app.js` 的 `FONT_FILES`（20 条，`url` 均为 `*.woff2`）；字体定义：`js/renderer.js` 的 `FONTS`。
-- **系统手写字体**（`FONTS` 里标 `sys:true`，`family` 为本机字族名，不打包）：英文 `Segoe Script`、`Segoe Print`、`Comic Sans MS`、`Gabriola`、`Ink Free`；中文 `华文行楷(STXingkai)`、`系统楷体(KaiTi)`。**下拉会隐藏本机没装的系统字体**（`fontsByLang` 里 `sys && !fontAvailable(family)` 跳过），避免"选了没反应"的静默回退。`fontAvailable(family)`：族名与 `monospace`/`sans-serif` 并排测量同串文本，两者宽度都与通用族完全一致 ⇒ 未安装。
-- **字体按需加载**：`loadFontFamily(family)` 按 family 找到 `FONT_FILES` 条目并 `loadFontEntry`；系统字体返回 null（无需加载）。字体下拉 `pickFont()` 选到**尚未加载**的字体时先 `await loadFontFamily` 再 `scheduleRender(true)`。`registerFonts()`/`loadBootFonts()` 用 `_hasFamily(fam)`（前缀匹配）判重。
-- 本机实测下拉：中文 11（内置 11，华文行楷未装被隐藏）、英文 14（内置 9 + 系统 5）。
+- **系统手写字体**（`FONTS` 里标 `sys:true`，`family` 为本机字族名，不打包）：英文 `Segoe Script`、`Segoe Print`、`Comic Sans MS`、`Gabriola`、`Ink Free`；中文 `华文行楷(STXingkai)`、`系统楷体(KaiTi)`。**下拉会隐藏本机没装的系统字体**（`fontsForUnify` 里 `sys && !fontAvailable(family)` 跳过），避免"选了没反应"的静默回退。`fontAvailable(family)`：族名与 `monospace`/`sans-serif` 并排测量同串文本，两者宽度都与通用族完全一致 ⇒ 未安装。
+- **字体按需加载**：`loadFontFamily(family)` 按 family 找到 `FONT_FILES` 条目并 `loadFontEntry`；系统字体返回 null（无需加载）。「字体」下拉选到**尚未加载**的字体时先 `await loadFontFamily` 再 `scheduleRender(true)`。`registerFonts()`/`loadBootFonts()` 用 `_hasFamily(fam)`（前缀匹配）判重。
+- 本机实测「字体」下拉：11 款内置中文手写（华文行楷未装被隐藏；M PLUS/Zen/Yomogi/KleeOne/ZenMaru 连 `√Δ±×` 都覆盖）。纯拉丁 9 款不进该下拉（缺中文字形会回退印刷体）。
 
 ## 左栏（导入面板：空态卡片 ↔ 文档列表 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
-- 第 1 行 `.tb-row`：**中文**字体下拉 + **英文**字体下拉（每个 `.font-select` 包在 `.font-field` 里、前面有可见的 `.font-lbl`「中文 / 英文」小标签——**两个下拉必须带可见标签**，不能只靠位置/`aria-label` 区分）+ **「统一笔迹」开关 `#unifyFont`** + **「统一」下拉 `#fontUnify`**（`#fontFieldUnify`，默认 `hidden`）+ 字号数字框 + `px`。**开启统一笔迹时：中英下拉 `hidden` 收起、统一下拉显示**（`.font-field[hidden]{display:none!important}` —— 历史坑：`display:inline-flex` 会盖过 `[hidden]`）。
+- 第 1 行 `.tb-row`：**「字体」下拉 `#fontUnify`**（`.font-field#fontField` 里、前面有可见的 `.font-lbl`「字体」标签；选一款即全篇统一：中文/英文/数字/公式同一款）+ 字号数字框 + `px`。
 - 第 2 行 `.tb-row`：字色 · `.tool-sep` · 缩放滑块 · `.tool-sep` · 「**按原文大小**」开关 `#sizeFromSource`（`.sfs-toggle`，默认开） · `.tool-sep` · 「**按原页分页**」开关 `#pageAnchor`（`.sfs-toggle`，默认开）。**B/I/U 按钮已随编辑器一并移除**（它们只作用于编辑器，导入内容不带加粗/斜体/下划线）。
 - 外层 `.input-toolbar{flex-direction:column;overflow:hidden}`，每行 `.tb-row{flex-wrap:wrap}`。**切勿再把这些控件塞进单个不可换行的 flex 组**（历史坑：总宽 ≈600px > 左栏 ≈477px → 横向溢出到中栏）。
 **左栏只有「导入」一种输入方式**（「编辑」页签与单篇编辑器已移除），面板**随有无文档自动切换两种形态**：
