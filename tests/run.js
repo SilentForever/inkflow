@@ -19,7 +19,7 @@ const TMP = path.join(ROOT, "tests", ".run");
 const SUITES = {
   unit: { page: "tests/run-tests.html", marker: "RESULTS_JSON:", budget: 120000, label: "单元 / 集成" },
   acc:  { page: "tests/accuracy.html",  marker: "ACC_JSON:",     budget: 200000, label: "准确率审计" },
-  e2e:  { page: "tests/e2e.html",       marker: "E2E_JSON:",     budget: 600000, label: "端到端 UI" },
+  e2e:  { page: "tests/e2e.html",       marker: "E2E_JSON:",     budget: 200000, label: "端到端 UI" },
 };
 
 function findChrome() {
@@ -83,10 +83,20 @@ function runSuite(chrome, key) {
     "--allow-file-access-from-files", "--hide-scrollbars",
     "--virtual-time-budget=" + s.budget, "--dump-dom", url,
   ];
-  const r = spawnSync(chrome, args, { encoding: "utf8", timeout: s.budget + 60000, maxBuffer: 128 * 1024 * 1024 });
-  const html = (r.stdout || "") + (r.stderr || "");
-  try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {}
-  fs.writeFileSync(path.join(TMP, key + ".html"), html);
+  /* 关键：把 chrome 的 stdout 直接写进文件（而非管道）。
+     headless Chrome 已知在 dump-dom 后会挂起不退出；若用管道，被超时杀掉时缓冲区里的
+     DOM 会一起丢失 → 表现为“无结果”。直写文件则数据已落盘，杀掉也无所谓。 */
+  const outFd = fs.openSync(outFile, "w");
+  try {
+    spawnSync(chrome, args, { stdio: ["ignore", outFd, outFd], timeout: s.budget + 60000 });
+  } finally {
+    try { fs.closeSync(outFd); } catch (e) {}
+  }
+  let html = "";
+  try { html = fs.readFileSync(outFile, "utf8"); } catch (e) {}
+  /* 再清理 profile：Windows 上若 chrome 子进程尚未释放文件，rmSync 会抛 EPERM ——
+     清理失败绝不能吞掉测试结果或让 runner 崩溃。 */
+  try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); } catch (e) {}
   const j = extractJson(html, s.marker);
   if (!j) return { key, label: s.label, ok: false, err: "未解析到 " + s.marker + "（套件可能超时或页面报错）", total: 0, pass: 0, fail: 0 };
   const total = j.total || 0, pass = j.pass || 0, fail = (j.fail != null ? j.fail : total - pass);
@@ -106,10 +116,18 @@ function main() {
   const flush = (results, done) => { try { fs.writeFileSync(reportFile, JSON.stringify({ chrome, done, results }, null, 2)); } catch (e) {} };
   flush([], false);
   console.log("Chrome: " + chrome + "\n");
+  /* 清理上次崩溃残留的 profile（可能仍被僵尸 chrome 占用 → 逐个 try） */
+  try { for (const d of fs.readdirSync(TMP)) if (/^profile-/.test(d)) { try { fs.rmSync(path.join(TMP, d), { recursive: true, force: true }); } catch (e) {} } } catch (e) {}
   const results = [];
   for (const k of keys) {
     process.stdout.write("▶ " + SUITES[k].label + " 运行中…");
-    const res = runSuite(chrome, k);
+    let res;
+    try {
+      res = runSuite(chrome, k);
+    } catch (e) {
+      /* 单套异常（如 profile 清理失败）不能中断其余套件，且必须记入报告 */
+      res = { key: k, label: SUITES[k].label, ok: false, err: "runner 异常：" + (e && e.message || e), total: 0, pass: 0, fail: 0 };
+    }
     results.push(res);
     flush(results, false);   /* 每套跑完即落盘：即便进程被杀，也能从 report.json 看出进度与结果 */
     console.log("\r" + (res.ok ? "✅" : "❌") + " " + res.label.padEnd(10, " ") +

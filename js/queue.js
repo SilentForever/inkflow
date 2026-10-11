@@ -15,7 +15,7 @@
   function $(id) { return document.getElementById(id); }
 
   function hashSettings(s) {
-    var keys = ["pageSize","paper","fontKeyCJK","fontKeyLat","fontSize","lineHeight","letterSpacing",
+    var keys = ["pageSize","paper","fontKeyCJK","fontKeyLat","unify","unifyKey","fontSize","lineHeight","letterSpacing",
       "hand","jitter","rotateDeg","sizeVary","baselineDrift","formulaHand","formulaScale",
       "inkColor","textColor","inkAmount","inkVary","margin","bold","italic","underline","textScale","sizeFromSource","pageAnchor",
       "showHeader","headerText","showDate","showFooter","showTotalPages","seed"];

@@ -83,6 +83,8 @@
     fontKey: "zenkurenaido",
     fontKeyCJK: "zenkurenaido",
     fontKeyLat: "caveat",
+    unifyFont: false,         // 统一笔迹：中英文/数字/公式都用同一款手写字体
+    unifyKey: "zenkurenaido", // 统一笔迹所用字体
     fontSize: 28,
     lineHeight: 1.9,
     letterSpacing: 0.3,
@@ -115,6 +117,7 @@
     return {
       pageSize: state.pageSize, paper: state.paper, fontKey: state.fontKey,
       fontKeyCJK: state.fontKeyCJK, fontKeyLat: state.fontKeyLat,
+      unify: state.unifyFont, unifyKey: state.unifyKey,
       fontSize: state.fontSize, lineHeight: state.lineHeight, letterSpacing: state.letterSpacing,
       jitter: state.jitter, rotateDeg: state.rotateDeg, sizeVary: state.sizeVary,
       baselineDrift: state.baselineDrift, inkColor: state.inkColor, inkAmount: state.inkAmount,
@@ -363,8 +366,22 @@
     }
     state.fontKeyCJK = state.fontKeyCJK || "zenkurenaido";
     state.fontKeyLat = state.fontKeyLat || "caveat";
+    state.unifyKey = state.unifyKey || "zenkurenaido";
     fillFontSelect("fontCJK", "cjk", state.fontKeyCJK);
     fillFontSelect("fontLat", "lat", state.fontKeyLat);
+    /* 统一笔迹下拉：只列适合中英文同款的手写字体 */
+    (function () {
+      var sel = $("fontUnify");
+      if (!sel) return;
+      var list = global.InkRender.fontsForUnify();
+      sel.innerHTML = "";
+      for (var i = 0; i < list.length; i++) {
+        var o = document.createElement("option");
+        o.value = list[i].key; o.textContent = list[i].label;
+        sel.appendChild(o);
+      }
+      sel.value = state.unifyKey;
+    })();
     var selCJK = $("fontCJK"), selLat = $("fontLat");
     function pickFont(sel, keyName, extra) {
       var key = sel.value;
@@ -379,6 +396,31 @@
     }
     if (selCJK) selCJK.addEventListener("change", function () { pickFont(selCJK, "fontKeyCJK", true); });
     if (selLat) selLat.addEventListener("change", function () { pickFont(selLat, "fontKeyLat"); });
+
+    /* ---------- 统一笔迹：中英文 / 数字 / 公式都用同一款字体 ---------- */
+    function applyUnify() {
+      var on = state.unifyFont;
+      var fc = $("fontFieldCJK"), fl = $("fontFieldLat"), fu = $("fontFieldUnify");
+      if (fc) fc.hidden = on;
+      if (fl) fl.hidden = on;
+      if (fu) fu.hidden = !on;
+      var fam = (global.InkRender.FONTS[state.unifyKey] || {}).family;
+      var go = function () { scheduleRender(true); };
+      if (on && fam && !_hasFamily(fam)) loadFontFamily(fam).then(go, go); else go();
+    }
+    var uChk = $("unifyFont");
+    if (uChk) {
+      uChk.checked = !!state.unifyFont;
+      uChk.addEventListener("change", function () { state.unifyFont = uChk.checked; applyUnify(); });
+    }
+    var uSel = $("fontUnify");
+    if (uSel) uSel.addEventListener("change", function () {
+      state.unifyKey = uSel.value;
+      var fam = (global.InkRender.FONTS[state.unifyKey] || {}).family;
+      var go = function () { scheduleRender(true); };
+      if (fam && !_hasFamily(fam)) loadFontFamily(fam).then(go, go); else go();
+    });
+    applyUnify();
 
     /* ---------- 手写程度：三档 ---------- */
     function applyHand(level) {
@@ -490,6 +532,7 @@
         document.fonts.add(face);
         global.InkRender.addCustomFont("userfont", family, "自定义：" + f.name.slice(0, 18));
         state.fontKeyCJK = "userfont"; state.fontKey = "userfont";
+        state.unifyKey = "userfont";
         var sel2 = $("fontCJK");
         if (sel2) {
           var opt = document.createElement("option");
@@ -497,6 +540,14 @@
           opt.textContent = "自定义：" + f.name.slice(0, 18);
           sel2.appendChild(opt);
           sel2.value = "userfont";
+        }
+        var selU = $("fontUnify");
+        if (selU) {
+          var optU = document.createElement("option");
+          optU.value = "userfont";
+          optU.textContent = "自定义：" + f.name.slice(0, 18);
+          selU.appendChild(optU);
+          selU.value = "userfont";
         }
         var hint = $("customFontHint");
         if (hint) hint.textContent = "已载入：" + f.name + "（仅本地读取）";

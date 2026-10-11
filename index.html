@@ -39,14 +39,21 @@
       <!-- WPS 式工具栏（对应「开始」选项卡）：两行分组，整齐不溢出 -->
       <div class="input-toolbar">
         <div class="tb-row">
-          <span class="font-field">
+          <span class="font-field" id="fontFieldCJK">
             <span class="font-lbl">中文</span>
             <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
           </span>
-          <span class="font-field">
+          <span class="font-field" id="fontFieldLat">
             <span class="font-lbl">英文</span>
             <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
           </span>
+          <span class="font-field" id="fontFieldUnify" hidden>
+            <span class="font-lbl">统一</span>
+            <select id="fontUnify" class="font-select" aria-label="统一手写字体" title="中英文 / 数字 / 公式同一款手写字体"></select>
+          </span>
+          <label class="checkline sfs-toggle" id="unifyWrap" title="开启后：中文 / 英文 / 数字 / 公式符号都用同一款手写字体，笔迹完全统一（字号仍按原文层级）">
+            <input type="checkbox" id="unifyFont"> 统一笔迹
+          </label>
           <label class="tool-size" title="字号">
             <input type="number" id="fontSize" class="font-size-input" min="12" max="96" step="1" value="28" aria-label="字号">
             <span class="tool-size-unit">px</span>
@@ -330,6 +337,9 @@
     <p><b>按原文大小转写</b></p>
     <p>默认按 PDF / Word 里<b>原本的字号层级</b>转写：大标题更大、正文正常、脚注更小，而不是全文统一字号。想统一字号时，关闭左栏的「按原文大小」开关即可。</p>
     <div class="divider"></div>
+    <p><b>统一笔迹</b></p>
+    <p>默认中英文可分别挑字体（中文一款、英文/数字一款）。若想让全篇是<b>同一种笔迹</b>，打开工具栏的<b>「统一笔迹」</b>开关，再选一款手写字体——中文、英文、数字、公式符号都会用这一款；字号仍按原文层级（标题大、正文小）。</p>
+    <div class="divider"></div>
     <p><b>支持哪些公式？</b></p>
     <p>由 MathJax 渲染，支持分数、根号、上下标、求和、积分、矩阵、希腊字母等几乎全部 LaTeX 数学语法。</p>
     <div class="divider"></div>
@@ -339,7 +349,7 @@
     <p><b>小技巧</b></p>
     <p>· 想更「手写」一点：把<b>手写程度</b>调到「随性」，或调高<b>抖动强度</b>与<b>基线漂移</b>；<br>
        · 想更工整：手写程度选「工整」，再把抖动降到 0.3 以下；<br>
-       · 中文字体默认 <b>Zen 圆珠笔手写</b>（推荐），英文默认 <b>Caveat</b>，中英可分别挑选；<br>
+       · 中文字体默认 <b>Zen 圆珠笔手写</b>（推荐），英文默认 <b>Caveat</b>，中英可分别挑选；想让全篇同一种笔迹就开<b>「统一笔迹」</b>；<br>
        · 公式会跟随所选字体一起手写化，字号已按层级自动匹配；<br>
        · 换随机种子可以得到完全不同的一版排版。</p>
   </div>

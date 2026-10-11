@@ -48,6 +48,17 @@
   }
   var MONO = '"Consolas", "Courier New", monospace';
 
+  /* ---------- 统一笔迹：可选的「同一款」手写字体清单 ----------
+   * 开启「统一笔迹」后，中英文 / 数字 / 公式符号都用**同一款**手写字体，
+   * 只从「中文与拉丁字形都较全」的手写字体里挑，避免中英风格割裂。
+   * 顺序：中文手写（通常也含拉丁与数字）在前，纯拉丁手写在后。 */
+  var UNIFY_ORDER = [
+    "zenkurenaido", "mplusround", "pottaone", "zenmaru", "yomogi", "kleeone",
+    "mashanzheng", "longcang", "zhimangxing", "liujianmaocao",
+    "caveat", "patrick", "indie", "kalam", "shadows", "architects", "gloria", "reenie", "rocksalt"
+  ];
+  var UNIFY_DEFAULT = "zenkurenaido";
+
   var PAGE_SIZES = {
     a4:     { w: 1240, h: 1754, label: "A4 竖版" },
     a4l:    { w: 1754, h: 1240, label: "A4 横版" },
@@ -67,13 +78,32 @@
 
   function fontCssOf(key) { return (FONTS[key] || FONTS.caveat).css; }
 
-  /* 中英文分别选字体：按字符判断该用哪个字体栈 */
+  /* 中英文分别选字体：按字符判断该用哪个字体栈（统一笔迹时中英文同一款） */
   function fontCssForChar(ch, s) {
     var cjk = U.isCJK(ch);
-    var key = cjk ? (s.fontKeyCJK || s.fontKey) : (s.fontKeyLat || s.fontKey);
+    var key = fontKeyFor(ch, s);
     var f = FONTS[key];
     if (!f) f = FONTS[cjk ? 'zenkurenaido' : 'caveat'];
     return { css: f.css, cjk: cjk, key: key };
+  }
+
+  /* 统一笔迹：把「中文用中文字体 / 英文用英文字体」合并成**同一款**字体。
+     选一款中英文（含数字）都尽量覆盖的手写字体，返回其 key。
+     用户显式选择（s.unifyKey）优先；否则用默认推荐款。 */
+  function unifyKeyOf(s) {
+    if (!s || !s.unify) return null;
+    var want = s.unifyKey;
+    if (want && FONTS[want]) return want;
+    for (var i = 0; i < UNIFY_ORDER.length; i++) if (FONTS[UNIFY_ORDER[i]]) return UNIFY_ORDER[i];
+    return UNIFY_DEFAULT;
+  }
+
+  /* 当前应使用的字体 key：统一笔迹时中英文都用同一款 */
+  function fontKeyFor(ch, s) {
+    var uk = unifyKeyOf(s);
+    if (uk) return uk;
+    var cjk = U.isCJK(ch);
+    return cjk ? (s.fontKeyCJK || s.fontKey) : (s.fontKeyLat || s.fontKey);
   }
 
   /* 像 Word 一样：可加粗 / 斜体。返回带样式前缀的 font 简写片段。 */
@@ -142,12 +172,13 @@
   var LATIN_FALLBACK = ["Caveat", "Patrick Hand", "Indie Flower", "Kalam", "Shadows Into Light", "Architects Daughter", "Gloria Hallelujah", "Reenie Beanie", "Rock Salt"];
   var CJK_FALLBACK = ["MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
   function mathFontsOf(s) {
-    var cjkFam = (FONTS[s.fontKeyCJK || s.fontKey] || {}).family;
-    var latFam = (FONTS[s.fontKeyLat || s.fontKey] || {}).family;
+    var uk = unifyKeyOf(s);
+    var cjkFam = (FONTS[uk || s.fontKeyCJK || s.fontKey] || {}).family;
+    var latFam = (FONTS[uk || s.fontKeyLat || s.fontKey] || {}).family;
     var list = [];
     function add(f) { if (f && list.indexOf(f) < 0) list.push(f); }
-    add(latFam);   /* 数字 / 拉丁：优先英文字体 */
-    add(cjkFam);   /* 中文：用中文字体 */
+    if (uk) { add(latFam); add(cjkFam); }   /* 统一笔迹：公式也用同一款 */
+    else { add(latFam); add(cjkFam); }      /* 默认：数字/拉丁优先英文字体，中文用中文字体 */
     for (var i = 0; i < LATIN_FALLBACK.length; i++) add(LATIN_FALLBACK[i]);
     for (var j = 0; j < CJK_FALLBACK.length; j++) add(CJK_FALLBACK[j]);
     return list;
@@ -688,6 +719,8 @@
   global.InkRender = {
     render: render, prepare: prepare, rasterizePage: rasterizePage,
     FONTS: FONTS, MONO: MONO, PAGE_SIZES: PAGE_SIZES,
+    UNIFY_ORDER: UNIFY_ORDER, UNIFY_DEFAULT: UNIFY_DEFAULT,
+    unifyKeyOf: unifyKeyOf, fontKeyFor: fontKeyFor,
     layoutBlocks: layoutBlocks, paginate: paginate, lineHeightFor: lineHeightFor, sourceLabelOf: sourceLabelOf,
     measureText: measureText, fontStr: fontStr, fontCssOf: fontCssOf, addCustomFont: addCustomFont,
     visualRatioOf: visualRatioOf, formulaScaleOf: formulaScaleOf,
@@ -698,6 +731,20 @@
         /* 系统字体若本机没装，隐藏该项，避免"选了没反应"（静默回退） */
         if (FONTS[k].sys && !fontAvailable(FONTS[k].family)) continue;
         out.push({ key: k, label: FONTS[k].label });
+      }
+      return out;
+    },
+    /* 「统一笔迹」下拉：只列出适合中英文同款的手写字体（按 UNIFY_ORDER 排序） */
+    fontsForUnify: function () {
+      var out = [], seen = {};
+      for (var k in FONTS) {   /* 用户自定义字体置顶 */
+        if (FONTS[k].custom) { out.push({ key: k, label: FONTS[k].label }); seen[k] = 1; }
+      }
+      for (var i = 0; i < UNIFY_ORDER.length; i++) {
+        var key = UNIFY_ORDER[i], f = FONTS[key];
+        if (!f || seen[key]) continue;
+        if (f.sys && !fontAvailable(f.family)) continue;
+        out.push({ key: key, label: f.label });
       }
       return out;
     }

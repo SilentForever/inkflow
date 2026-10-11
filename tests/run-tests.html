@@ -534,6 +534,45 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     return { pass: true, detail: '手绘 ' + r2.glyphs.length + ' 个字形（' + JSON.stringify(fams2) + '），符号 100% 手写化' };
   });
 
+  /* ---------- 统一笔迹：中英文 / 数字 / 公式同一款字体 ---------- */
+  await t('统一笔迹：开启后中英文/数字用同一款字体', function () {
+    var off = { fontKeyCJK: 'zenkurenaido', fontKeyLat: 'caveat' };
+    var on = { fontKeyCJK: 'zenkurenaido', fontKeyLat: 'caveat', unify: true, unifyKey: 'mashanzheng' };
+    assert(window.InkRender.fontKeyFor('中', off) === 'zenkurenaido', '关闭时中文应走中文键');
+    assert(window.InkRender.fontKeyFor('A', off) === 'caveat', '关闭时英文应走英文键');
+    assert(window.InkRender.fontKeyFor('中', on) === 'mashanzheng', '开启后中文应走统一键');
+    assert(window.InkRender.fontKeyFor('A', on) === 'mashanzheng', '开启后字母应走统一键');
+    assert(window.InkRender.fontKeyFor('7', on) === 'mashanzheng', '开启后数字应走统一键');
+    return { pass: true, detail: '统一键 mashanzheng 同时用于 中文/字母/数字' };
+  });
+
+  await t('统一笔迹：公式字体链首项 = 统一字体（中文/拉丁同款）', function () {
+    var on = { fontKeyCJK: 'zenkurenaido', fontKeyLat: 'caveat', unify: true, unifyKey: 'mashanzheng' };
+    var fams = window.InkRender.mathFontsOf(on);
+    assert(fams[0] === 'MaShanZheng', '公式字体链首项应为统一字体，实际 ' + fams[0]);
+    var offFams = window.InkRender.mathFontsOf({ fontKeyCJK: 'zenkurenaido', fontKeyLat: 'caveat' });
+    assert(offFams[0] === 'Caveat', '未统一时公式首项应为英文字体，实际 ' + offFams[0]);
+    return { pass: true, detail: '统一=' + fams[0] + ' / 默认=' + offFams[0] };
+  });
+
+  await t('统一笔迹：unifyKeyOf 默认与无效回退', function () {
+    assert(window.InkRender.unifyKeyOf({ unify: false }) === null, '关闭应为 null');
+    assert(window.InkRender.unifyKeyOf({ unify: true, unifyKey: 'nope' }) === window.InkRender.UNIFY_DEFAULT, '无效键应回退默认');
+    assert(window.InkRender.fontsForUnify().length >= 10, '统一字体清单过少');
+    return { pass: true, detail: '默认 ' + window.InkRender.UNIFY_DEFAULT + ' / 清单 ' + window.InkRender.fontsForUnify().length + ' 款' };
+  });
+
+  await t('统一笔迹：渲染输出与「中英分别选」不同（笔迹确实统一了）', async function () {
+    await window.InkApp.registerFonts();
+    try { await document.fonts.ready; } catch (e) {}
+    var src = '中文 ABC 123 $x^2+1$';
+    function hash(cv) { var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; var h = 2166136261; for (var i = 0; i < d.length; i += 4 * 11) { h ^= d[i]; h = Math.imul(h, 16777619); } return h >>> 0; }
+    var a = await window.InkRender.render(window.InkParser.parse(src), baseSettings({ fontKeyCJK: 'zenkurenaido', fontKeyLat: 'caveat' }), {});
+    var b = await window.InkRender.render(window.InkParser.parse(src), baseSettings({ fontKeyCJK: 'zenkurenaido', fontKeyLat: 'caveat', unify: true, unifyKey: 'zenkurenaido' }), {});
+    assert(hash(a.canvases[0]) !== hash(b.canvases[0]), '统一笔迹后输出应不同（英文/数字换成中文字体）');
+    return { pass: true, detail: '默认 hash=' + hash(a.canvases[0]) + ' / 统一 hash=' + hash(b.canvases[0]) };
+  });
+
   await t('公式手写化：无法手写化的字符回退到 MathJax 原字形', function () {
     var fams = window.InkRender.mathFontsOf({ fontKey: 'mashanzheng' });
     /* 箭头 ⇒ 在多数手写体中缺失，应回退而不是丢失 */

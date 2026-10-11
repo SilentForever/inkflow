@@ -346,6 +346,7 @@ input[type=file]::file-selector-button:hover{background:var(--bg-deep);}
 .tool-size-ico{font-weight:700;font-size:13px;}
 /* 字体下拉（WPS 式工具栏内联）：每项带「中文 / 英文」标签，随行宽自适应 */
 .font-field{display:inline-flex;align-items:center;gap:4px;flex:1 1 132px;min-width:0;}
+.font-field[hidden]{display:none !important;}
 .font-lbl{flex:0 0 auto;font-size:11.5px;color:var(--text-3);white-space:nowrap;}
 .font-select{
   flex:1 1 0;min-width:0;max-width:100%;

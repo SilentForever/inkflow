@@ -55,14 +55,21 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       <!-- WPS 式工具栏（对应「开始」选项卡）：两行分组，整齐不溢出 -->
       <div class="input-toolbar">
         <div class="tb-row">
-          <span class="font-field">
+          <span class="font-field" id="fontFieldCJK">
             <span class="font-lbl">中文</span>
             <select id="fontCJK" class="font-select" aria-label="中文字体" title="中文字体"></select>
           </span>
-          <span class="font-field">
+          <span class="font-field" id="fontFieldLat">
             <span class="font-lbl">英文</span>
             <select id="fontLat" class="font-select" aria-label="英文字体" title="英文字体"></select>
           </span>
+          <span class="font-field" id="fontFieldUnify" hidden>
+            <span class="font-lbl">统一</span>
+            <select id="fontUnify" class="font-select" aria-label="统一手写字体" title="中英文 / 数字 / 公式同一款手写字体"></select>
+          </span>
+          <label class="checkline sfs-toggle" id="unifyWrap" title="开启后：中文 / 英文 / 数字 / 公式符号都用同一款手写字体，笔迹完全统一（字号仍按原文层级）">
+            <input type="checkbox" id="unifyFont"> 统一笔迹
+          </label>
           <label class="tool-size" title="字号">
             <input type="number" id="fontSize" class="font-size-input" min="12" max="96" step="1" value="28" aria-label="字号">
             <span class="tool-size-unit">px</span>
@@ -435,6 +442,24 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       await sleep(1200);
       if (a === b) throw new Error("换英文字体未改变输出");
       return "中文不变、英文换字体 → 输出不同";
+    });
+
+    await t("统一笔迹：开启后中英下拉收起 / 统一下拉出现 / 输出改变", async function(){
+      var fc = $("fontFieldCJK"), fl = $("fontFieldLat"), fu = $("fontFieldUnify");
+      function vis(el){ return el && !el.hidden && el.getBoundingClientRect().height > 0; }
+      if ($("unifyFont").checked) { $("unifyFont").checked = false; $("unifyFont").dispatchEvent(new Event("change",{bubbles:true})); await sleep(400); }
+      if (!vis(fc) || !vis(fl)) throw new Error("关闭统一时中英下拉应可见");
+      if (vis(fu)) throw new Error("关闭统一时统一下拉不应可见");
+      var before = hashAll(document.querySelector("canvas"));
+      $("unifyFont").checked = true; $("unifyFont").dispatchEvent(new Event("change",{bubbles:true}));
+      await sleep(1600);
+      if (vis(fc) || vis(fl)) throw new Error("开启统一后中英下拉应收起");
+      if (!vis(fu)) throw new Error("开启统一后统一下拉应出现");
+      var after = hashAll(document.querySelector("canvas"));
+      if (before === after) throw new Error("开启统一笔迹后输出应改变");
+      $("unifyFont").checked = false; $("unifyFont").dispatchEvent(new Event("change",{bubbles:true}));
+      await sleep(900);
+      return "中英下拉收起 / 统一下拉出现 / 输出改变";
     });
 
     await t("面板：空态拖放卡片 ↔ 有文档列表（可切换 + 继续添加）", async function(){
