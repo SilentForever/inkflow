@@ -601,18 +601,23 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
       else if (L.type === 'bezier') bar = L;
     });
     (r.glyphs || []).forEach(function (g) { if (g.cx > maxCx) maxCx = g.cx; });
-    /* 旧 bug：勾按字号缩放后画在 MathJax 勾框中心，缩到 ~0.6×、够不到横线 →
-       表现为「孤零零一条横线，勾缩在左下角」。现改为按 MathJax 勾框几何矢量重绘，
-       与所选字体无关，勾必然完整且与横线相接。 */
+    /* 旧 bug（两轮）：① 按字形缩放 → 缩在左下角够不到横线；② 矢量折线**点位顺序写反**，
+       勾尖落在左中，画出来是「<」而不是「√」。正确 √ 的点序必须与 MathJax 原生一致：
+       左短臂起点（偏左、居中高）→ 底部勾尖（最低点）→ 右上端（最高、接横线左端）。 */
     assert(hook, '根号勾应以矢量折线重绘（与字体无关）');
     assert(bar, '根号上横线应存在');
-    var topX = hook.pts[0][0], topY = hook.pts[0][1];
-    var botY = hook.pts[hook.pts.length - 1][1];
-    assert(Math.abs(topY - bar.y0) < 2.0, '勾顶应与上横线同高相接，hookTopY=' + topY.toFixed(1) + ' barY=' + bar.y0.toFixed(1));
-    assert(Math.abs(topX - bar.x0) < 8.0, '勾顶应位于上横线左端，hookTopX=' + topX.toFixed(1) + ' bar.x0=' + bar.x0.toFixed(1));
-    assert(botY > topY + 10, '勾应向下延伸（完整勾形），botY=' + botY.toFixed(1) + ' topY=' + topY.toFixed(1));
+    assert(hook.pts.length >= 3, '勾应为多点折线（左短臂 + 勾尖 + 右长臂）');
+    var p0 = hook.pts[0], p1 = hook.pts[1], p2 = hook.pts[hook.pts.length - 1];
+    /* 勾尖（中间折点）必须是全折线最低点 → 才是「√」而非「<」 */
+    assert(p1[1] > p0[1] + 5 && p1[1] > p2[1] + 5, '勾尖应在底部（√ 而非 <），pts=' + JSON.stringify(hook.pts));
+    /* 左短臂：起点在勾尖左侧 */
+    assert(p0[0] < p1[0], '左短臂起点应在勾尖左侧');
+    /* 右长臂：终点接上横线（同高、位于横线左端、在勾尖右侧） */
+    assert(Math.abs(p2[1] - bar.y0) < 2.0, '勾右上端应与上横线同高相接，hookTopY=' + p2[1].toFixed(1) + ' barY=' + bar.y0.toFixed(1));
+    assert(Math.abs(p2[0] - bar.x0) < 8.0, '勾右上端应位于上横线左端，hookTopX=' + p2[0].toFixed(1) + ' bar.x0=' + bar.x0.toFixed(1));
+    assert(p2[0] > p1[0], '勾右上端应在勾尖右侧（右长臂）');
     assert(bar.x1 >= maxCx, '上横线右端应覆盖被开方数，bar.x1=' + bar.x1.toFixed(1) + ' 被开方数右缘≈' + maxCx.toFixed(1));
-    return { pass: true, detail: '勾 ' + topX.toFixed(1) + ',' + topY.toFixed(1) + '→底 ' + botY.toFixed(1) + '；横线 ' + bar.x0.toFixed(1) + '→' + bar.x1.toFixed(1) + ' 覆盖被开方数' };
+    return { pass: true, detail: '勾 左' + p0[0].toFixed(1) + ',' + p0[1].toFixed(1) + '→尖 ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + '→右上 ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + '；横线 ' + bar.x0.toFixed(1) + '→' + bar.x1.toFixed(1) };
   });
 
   await t('公式回退：缺字形时保留字形路径（回归 <defs> 被误删）', async function () {

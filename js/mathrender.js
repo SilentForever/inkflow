@@ -307,11 +307,14 @@
         }
         var barY = (ri >= 0) ? (rectBoxes[ri].t + rectBoxes[ri].h / 2) : by0;
         var sw = Math.max(1.2, H * 0.075);
-        /* 勾：顶右（与横线相接）→ 左下折点 → 底部，用折线矢量描出 */
+        /* 勾：左下短臂 → 底部勾尖 → 右上长臂（接横线），用折线矢量描出。
+           顺序必须与 MathJax 原生 √ 一致：勾尖在**底部**（归一化约 (0.32,1.0)），
+           左短臂起于 (0,0.64)，右长臂止于 (1,0)。旧版顺序把勾尖放在左中，
+           画出来是「<」而不是「√」（用户反复反馈的「根号怪/断裂」根因）。 */
         lines.push({ type: "path",
-                     pts: [[bx1, barY],
-                           [bx0 + W * 0.04, by0 + H * 0.58],
-                           [bx0 + W * 0.26, by1]],
+                     pts: [[bx0,            by0 + H * 0.64],
+                           [bx0 + W * 0.32, by1],
+                           [bx1,            barY]],
                      w: sw });
         if (ri >= 0) {
           var RBv = rectBoxes[ri]; RBv.used = true;
