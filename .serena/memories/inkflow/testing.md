@@ -32,8 +32,13 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 ## e2e 主体同步
 `tests/e2e.html` 内嵌一份 index.html 的 body。**改了 index.html 的 DOM 必须重新同步 e2e 的 body**，否则结构断言失准。同步法：截取 `index.html` 的 `<body>…<script>` 之间内容，按 `[...idx.matchAll(/<script src="([^"]+)"/g)]` 原顺序重发 `<script src="../…">`。
 
+## OCR 套件（第 4 套）
+- `node tests/run.js ocr` → 调 `tests/ocr-runner.js`：**自起本地静态服务器**（Worker 不能在 `file://` 下建）+ CDP，跑真实 `InkImport.capture()` 路径，断言能识别出图片文字。成功打印 `OCR_JSON:{"pass":true,...}` 并 exit 0。
+- 动机：OCR 曾因 `workerPath` 指主包而**永久挂起**（见 `mem:inkflow/pitfalls`），必须有一条能抓到的自动化用例。
+- `tests/run.js` 的 `SUITES` 里 `ocr` 走 `runner` 字段（而非 `page`），`runRunner()` 用 `spawnSync` 跑并解析 `OCR_JSON:`（**平衡括号扫描**，因为 JSON 有嵌套，非贪婪正则 `\{.*?\}` 会截断）。
+
 ## 最近一次基线（本轮，全绿）
-单元 **50/50**、e2e **31/31**、准确率 **378/378（100%）**；网络请求/本地存储 **0/0**。
+单元 **52/52**、准确率 **378/378（100%）**、e2e **31/31**、OCR **1/1**；网络请求/本地存储 **0/0**。
 
 > **根号回归（2 例，共 50）**：①「勾完整（顶接横线、底达被开方数），横线覆盖被开方数」——
 > 断言根号勾以 `lines` 里 `type:"path"` 的折线重绘（`pts.length≥2`）、`|hook.pts[0].y − bar.y0| < 2`（勾顶与横线同高相接）、

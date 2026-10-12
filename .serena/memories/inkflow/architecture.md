@@ -8,9 +8,10 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 **重型组件（jsPDF / Mammoth / PDF.js / Tesseract）不再写死，改由 `js/loader.js` 按需注入 `<script>`**（`ensureJsPdf/ensureDocx/ensurePdf/ensureOcr`）。因此 `importers.js` / `exporter.js` 在真正用到时必须先 `await InkLoader.ensureXxx()` 再取全局对象。
 
 ## 加载提速（首屏关键）
-- 字体已转 **WOFF2**（`tools/ttf2woff2.py`，需 fontTools+brotli）：fonts/ 47MB → **20.8MB**。
-- `js/app.js` 的 `registerFonts` 拆分：`loadBootFonts()` 先加载默认中/英各一款（LXGW WenKai + Caveat，约 1.6MB）→ 出首屏 → `loadRemainingFonts()` 后台补齐，补齐后按需重绘。字体徽标 `#fontBadge` 显示已加载数 `n/21`。
-- 首屏关键资源：`index.html + css + 轻量本地 JS + MathJax + 1.4MB 字体`。
+- 字体已转 **WOFF2**（`tools/ttf2woff2.py`，需 fontTools+brotli）：fonts/ 47MB → **22MB**。
+- `js/app.js` 的 `registerFonts`：`loadBootFonts()` 只加载默认中/英各一款（LXGW WenKai + Caveat 常规/粗体 = **3 款**，约 1.6MB）→ 出首屏。**boot 不再后台预取其余 18 款**（曾致首访 24.6MB + 21 条 `[Intervention] Slow network` 告警）；其余字体**按需加载**（字体下拉选到才 `loadFontFamily`）。`InkApp.ensureAllFonts()` 供预览/测试显式全量加载。字体徽标 `#fontBadge` 显示 `n/21`。
+- 首屏关键资源：`index.html + css + 轻量本地 JS + MathJax + 1.6MB 字体`。
+- **图片 OCR 组件按需加载**（`InkLoader.ensureOcr`）：`vendor/tesseract.min.js`（主包）+ **`vendor/worker.min.js`（独立 worker 脚本，必须单独存在！）** + `vendor/tesseract-core-simd-lstm.wasm.js` + `vendor/tessdata/chi_sim|eng`。`importers.js` 的 `createWorker({workerPath})` **必须**指向 `vendor/worker.min.js`（指主包会永久挂起，见 `mem:inkflow/pitfalls`）。
 
 ## 公式手写化（核心：js/mathrender.js 的 InkMath）
 - MathJax(tex-svg) 生成矢量 SVG → 隐藏离屏容器真实布局 → `getBoundingClientRect()` 读每个字形位置 → **在 canvas 上用手写字体重画字形**。

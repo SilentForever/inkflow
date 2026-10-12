@@ -30,6 +30,10 @@
 - PDF 用 pdf.js `getTextContent()` 的 `item.transform[3]` 当字号；**按 y 坐标聚合成行**（容差约 `0.5×字号`）、取行内最大字号，再对行打标记。
 - 字号百分比要 **clamp**（如 0.5–2.4）并设上限，防个别超大标题把版面撑爆。
 
+## OCR / 按需加载
+- **`createWorker` 永久挂起（workerPath 指错）**：tesseract.js v5 的 Worker 脚本是**独立文件 `worker.min.js`**（官方 dist 里与主包 `tesseract.min.js` 并列），**不是主 bundle**。若 `workerPath` 指向主包 → Worker 起不来、`createWorker` 的 Promise **永不 resolve、不报错不超时**，界面表现为「点了识别图片一直卡住」。修复 = vendor 放 `worker.min.js`（123KB）+ `workerPath` 指它。实测修复后 `createWorker` 317ms / `recognize` 270ms / 真实路径 `capture()` ~0.6s。**排查挂起类故障**：用 CDP 看「Worker target 是否出现 + 网络请求是否发生 + Promise 是否 resolve」，别只看「组件是否已加载」（`ensureOcr` 8ms 就完成了，但 `createWorker` 挂死）。**凡按需加载的重型组件都要有一条端到端回归**（见 `mem:inkflow/testing` 的 ocr 套件），否则挂起无人发现。
+- **重型组件按需加载**：字体/PDF/Word/OCR 都不该首屏全量拉。字体曾因 boot 预取 21 款 ~22MB 触发 21 条 Slow-network 告警；改为按需（默认只 3 款）后首访 24.6MB→3.9MB(-84%)、告警 0。
+
 ## 字体
 - **「手写字体」≠「覆盖所有简体字」**：日文手写体（Zen/M PLUS/Yomogi/KleeOne/Potta/ZenMaru）普遍缺约 1/3 常用简体字（如「验证导对两边称题」），canvas 缺字会被浏览器**静默回退到系统楷体**（Windows 上渲染成粗黑印刷体），同一行冒出一批粗黑字。**根治办法 = CSS 字体栈原生回退**（给每款中文字体补挂一款全覆盖手写体兜底，现用霞鹜文楷 `LXGW WenKai`），**不要用 JS 逐字检测**——`measureText` 宽度启发式对全宽 CJK 字形**永远判「缺」**（字形与回退族同宽）。选默认字体时**覆盖率优先于风格**。定位手段：fontTools 读 cmap 查缺字 + 墨迹密度像素实测（回退字密度是邻字 1.3~1.9×），不靠 vision 目测。
 - **分批加载后选非默认字体不生效**：`boot()` 后台补齐回调曾用错键名 `state.fontCJK`（真名 `state.fontKeyCJK`）→ 条件永假不重绘，选到未加载字体就画成回退字体。改键名后修复。
