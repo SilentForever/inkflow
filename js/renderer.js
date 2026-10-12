@@ -667,7 +667,10 @@
       var ln = ls[k];
       ctx.lineWidth = Math.max(1, ln.w);
       ctx.beginPath();
-      if (ln.type === "bezier" && ln.bend) {
+      if (ln.type === "path" && ln.pts && ln.pts.length) {
+        ctx.moveTo(ox + ln.pts[0][0], oy + ln.pts[0][1]);
+        for (var pi = 1; pi < ln.pts.length; pi++) ctx.lineTo(ox + ln.pts[pi][0], oy + ln.pts[pi][1]);
+      } else if (ln.type === "bezier" && ln.bend) {
         ctx.moveTo(ox + ln.x0, oy + ln.y0);
         ctx.bezierCurveTo(ox + ln.x0 + (ln.x1 - ln.x0) * 0.34, oy + ln.y0 + ln.bend,
                           ox + ln.x0 + (ln.x1 - ln.x0) * 0.67, oy + ln.y0 - ln.bend,

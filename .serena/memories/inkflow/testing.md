@@ -35,9 +35,10 @@ CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"
 ## 最近一次基线（本轮，全绿）
 单元 **50/50**、e2e **31/31**、准确率 **378/378（100%）**；网络请求/本地存储 **0/0**。
 
-> **根号回归（新增 2 例，共 50）**：①「勾不被缩小、与上横线相接、横线覆盖被开方数」——
-> 断言 `hook.size > fontPx*1.05`（旧 bug 会把勾缩到 ~0.6×）、`lines.length===1`、
-> `line.x0 ≤ hook.cx + hook.size*0.5`、`line.x1 ≥ 被开方数右缘`；②「缺 √ 字形回退时保留字形路径」——
+> **根号回归（2 例，共 50）**：①「勾完整（顶接横线、底达被开方数），横线覆盖被开方数」——
+> 断言根号勾以 `lines` 里 `type:"path"` 的折线重绘（`pts.length≥2`）、`|hook.pts[0].y − bar.y0| < 2`（勾顶与横线同高相接）、
+> `|hook.pts[0].x − bar.x0| < 8`（勾顶位于横线左端）、`botY > topY+10`（勾向下延伸）、`bar.x1 ≥ 被开方数右缘`；
+> ②「公式回退：缺字形时保留字形路径」——用 `\partial`（Caveat/Patrick Hand 均缺 ∂）触发回退，
 > 断言 `fallbackSvg` 含 `<defs>` 与 `<path>`（旧版把 defs 里的 path 一并删掉 → 回退字形空白）。
 > 注意：`InkMath.clearCache()` 现同时清 `_cov`（字形覆盖探测缓存）；`InkApp.registerFonts()`
 > 结束后会调用它 —— 否则字体加载前渲染的公式会被永久缓存成印刷体。

@@ -284,42 +284,38 @@
       var baseY = (M.f - vbY) * uScale;
 
       if (code === "221A" || ch === "\u221A") {
-        /* 根号 = 勾 + 上横线。手写字体自带的「√」字形**不含**上横线，而 MathJax 的
-           根号是 <use 勾> + <rect 上横线> 两部分。旧代码把勾按字号缩放后画在
-           MathJax 勾框中心，勾会缩到约 0.6×、够不到那条 rect 横线 —— 于是渲染成
-           「孤零零一条横线，勾缩在左下角」，就是用户看到的「根号有问题」。
-           这里改为：① 勾按「MathJax 勾框高度」缩放并让**墨迹底对齐勾框底**，
-           保证勾顶正好顶到横线；② 找到勾右侧那条细 rect 作为上横线，
-           左端接到勾顶，右端保持 MathJax 原长度（完整覆盖被开方数）。 */
+        /* 根号 = 勾 + 上横线（MathJax 结构：<use 勾> + <rect 上横线>，横线左端
+           正好接在「勾框」的右上角）。手写字体自带的「√」字形有两个致命问题：
+             ① 墨迹极小（约 22px/100px），却带 ~94px 的巨大字宽 —— 按字宽居中
+                定位，墨迹会跑到左边，勾缩在左下角、够不到横线；
+             ② 不同字体字形差异极大，按字号缩放永远对不齐。
+           所以这里**彻底放弃画字形，改为按 MathJax 勾框几何矢量重绘**：
+             勾 = 顶右（与横线相接）→ 左下折点 → 底部 的折线；
+             上横线 = 勾右侧那条细 rect，左端接勾顶、右端保持原长。
+           与所选字体无关，任何字体下都稳定正确。 */
         var bx0 = b.left - sr.left, by0 = b.top - sr.top, bx1 = b.right - sr.left, by1 = b.bottom - sr.top;
-        var radFam = pickFont(fams, "\u221A");
-        if (!radFam) { kept.push(u); continue; }
-        var mfont = meas2();
-        mfont.font = REF + 'px "' + radFam + '"';
-        var mts = mfont.measureText("\u221A");
-        var gA = mts.actualBoundingBoxAscent || REF * 0.9;
-        var gD = mts.actualBoundingBoxDescent || 0;
-        var gW = mts.width || REF * 0.5;
-        var k = (gA + gD) > 0 ? (by1 - by0) / (gA + gD) : 1;
-        k = Math.max(0.45, Math.min(1.9, k));
-        var radSize = REF * k;
-        var radBaseY = by1 - gD * k;      /* 墨迹底对齐 MathJax 勾底 */
-        var radCx = bx0 + (gW * k) / 2;   /* 墨迹左缘对齐 MathJax 勾左缘 */
-        glyphs.push({ ch: "\u221A", fam: radFam, size: radSize, cx: radCx, baseY: radBaseY, rot: 0 });
+        var W = bx1 - bx0, H = by1 - by0;
         /* 找上横线：在勾右侧、纵向贴近勾顶的细 rect */
         var ri = -1, rbest = 1e9;
         for (var rj = 0; rj < rectBoxes.length; rj++) {
           var RB = rectBoxes[rj];
-          if (RB.w < 3 || RB.h > Math.max(14, fontPx * 0.35)) continue;  /* 只要细横线 */
-          if (RB.l <= bx0 + 2) continue;                       /* 必须在勾右侧 */
-          if (RB.t > by0 + 8 || RB.b < by0 - 30) continue;     /* 纵向贴近勾顶 */
+          if (RB.w < 3 || RB.h > Math.max(16, H * 0.22)) continue;   /* 只要细横线 */
+          if (RB.l <= bx0 + 2) continue;                             /* 必须在勾右侧 */
+          if (RB.t > by0 + Math.max(10, H * 0.28) || RB.b < by0 - H * 0.5) continue;
           var dd = Math.abs(RB.t - by0);
           if (dd < rbest) { rbest = dd; ri = rj; }
         }
+        var barY = (ri >= 0) ? (rectBoxes[ri].t + rectBoxes[ri].h / 2) : by0;
+        var sw = Math.max(1.2, H * 0.075);
+        /* 勾：顶右（与横线相接）→ 左下折点 → 底部，用折线矢量描出 */
+        lines.push({ type: "path",
+                     pts: [[bx1, barY],
+                           [bx0 + W * 0.04, by0 + H * 0.58],
+                           [bx0 + W * 0.26, by1]],
+                     w: sw });
         if (ri >= 0) {
           var RBv = rectBoxes[ri]; RBv.used = true;
-          var linkX = bx0 + gW * k * 0.9;                      /* 勾顶附近起笔 */
-          lines.push({ type: "bezier", x0: Math.min(RBv.l, linkX), x1: RBv.r,
+          lines.push({ type: "bezier", x0: Math.min(RBv.l, bx1 - W * 0.06), x1: RBv.r,
                        y0: RBv.t + RBv.h / 2, bend: Math.max(0.7, RBv.h) * 0.45,
                        w: Math.max(1.0, RBv.h) });
         }
