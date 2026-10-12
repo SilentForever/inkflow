@@ -454,7 +454,7 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
   });
 
   /* ---------- 11. 字体 ---------- */
-  await t('字体：8 个本地字体文件全部加载成功', async function () {
+  await t('字体：全部本地字体文件加载成功', async function () {
     assert(window.InkApp && window.InkApp.registerFonts, 'InkApp missing');
     window.InkApp.setFontBase('../');
     var res = await window.InkApp.registerFonts();
@@ -561,8 +561,48 @@ window.addEventListener('unhandledrejection', function (e) { window.__ERRORS.pus
     }
     assert(!hasCaveat, '纯拉丁字体（caveat）不应出现在统一清单');
     assert(allCJK, '统一清单里出现了非中英文兼顾的字体');
-    assert(window.InkRender.fontsForUnify()[0].key === 'zenkurenaido', '推荐字体应排在最前');
-    return { pass: true, detail: list.length + ' 款，均为中英文兼顾，首项 zenkurenaido' };
+    assert(window.InkRender.fontsForUnify()[0].key === 'lxgw', '推荐字体（霞鹜文楷）应排在最前');
+    return { pass: true, detail: list.length + ' 款，均为中英文兼顾，首项 lxgw' };
+  });
+
+  /* ---------- 字体：缺字绝不回退印刷体（本轮新增） ---------- */
+  await t('字体：所有中文字体的字体栈都挂了 LXGW WenKai 兜底（缺字不回退印刷体）', function () {
+    var F = window.InkRender.FONTS, bad = [];
+    for (var k in F) {
+      if (!F[k].cjk || F[k].custom) continue;
+      if (F[k].css.indexOf('LXGW WenKai') < 0) bad.push(k);
+    }
+    assert(bad.length === 0, '这些中文字体缺 LXGW 兜底（缺字会回退印刷体）：' + bad.join(', '));
+    /* 默认字体必须是全覆盖的霞鹜文楷 */
+    assert(window.InkRender.UNIFY_DEFAULT === 'lxgw', '默认字体应为 lxgw，实际 ' + window.InkRender.UNIFY_DEFAULT);
+    assert(window.InkRender.FONTS.lxgw && window.InkRender.FONTS.lxgw.family === 'LXGW WenKai', '缺少 lxgw 字体定义');
+    return { pass: true, detail: '中文字体均含 LXGW 兜底；默认 = ' + window.InkRender.UNIFY_DEFAULT };
+  });
+
+  await t('字体：霞鹜文楷覆盖常见简体字（含「验证导对两边称题」）', async function () {
+    await document.fonts.load('30px "LXGW WenKai"');
+    /* 稳健判据：把同一个字分别用 LXGW 与「一个必然不存在的族名」（会回退到系统默认）
+       画到小画布上逐像素比对。LXGW 缺该字时也会回退到系统默认 → 两图完全相同；
+       有该字时字形不同 → 像素必然有差异。比 measureText 的墨迹包围盒可靠得多。 */
+    var SZ = 40, W = 56, H = 56;
+    function draw(ch, fam) {
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var c = cv.getContext('2d');
+      c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#000'; c.textBaseline = 'top'; c.font = SZ + 'px ' + fam;
+      c.fillText(ch, 6, 6);
+      return c.getImageData(0, 0, W, H).data;
+    }
+    var probe = '验证导对两边称题一元二次方程';
+    var miss = [];
+    for (var i = 0; i < probe.length; i++) {
+      var a = draw(probe[i], '"LXGW WenKai"'), b = draw(probe[i], '"NoSuchFamily_ZZZ"');
+      var diff = 0;
+      for (var k = 0; k < a.length; k += 4) if (Math.abs(a[k] - b[k]) > 24) diff++;
+      if (diff < 8) miss.push(probe[i]);   /* 几乎无差异 ⇒ 缺字（回退到同一默认字体） */
+    }
+    assert(miss.length === 0, '霞鹜文楷缺字：' + miss.join(''));
+    return { pass: true, detail: probe.length + ' 个常用字全部覆盖（像素比对）' };
   });
 
   await t('统一字体：渲染输出随所选字体改变', async function () {

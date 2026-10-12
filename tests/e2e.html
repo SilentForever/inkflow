@@ -384,13 +384,13 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
 
   window.__E2E = (async function(){
     await t("启动：应用初始化完成", async function(){
-      await waitFor(function(){ return window.InkApp && document.fonts.check('30px "Zen Kurenaido"'); }, 45000, "fonts");
+      await waitFor(function(){ return window.InkApp && document.fonts.check('30px "LXGW WenKai"'); }, 45000, "fonts");
       await waitFor(function(){ return document.querySelector("canvas"); }, 45000, "first render");
       return "字体与首次渲染就绪";
     });
 
     await t("默认值：中文毛笔字体 / 28px / 行距1.9 / 手写度50% / 自然档", function(){
-      if ($("fontUnify").value !== "zenkurenaido") throw new Error("fontUnify=" + $("fontUnify").value);
+      if ($("fontUnify").value !== "lxgw") throw new Error("fontUnify=" + $("fontUnify").value);
       if (document.querySelector('[data-hand][aria-pressed="true"]').getAttribute("data-hand") !== "normal") throw new Error("hand not normal");
       if ($("fontSize").value !== "28") throw new Error("fontSize=" + $("fontSize").value);
       if ($("lineHeight").value !== "1.9") throw new Error("lineHeight=" + $("lineHeight").value);
@@ -398,24 +398,24 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "zenkurenaido / 28px / 1.9 / 50%";
     });
 
-    await t("徽标：公式引擎就绪 + 字体 20/20", async function(){
+    await t("徽标：公式引擎就绪 + 字体 21/21", async function(){
       /* 字体分批加载：等后台补齐（默认字体先到，其余随后） */
-      for (var i = 0; i < 80 && !/20\s*\/\s*20/.test($("fontBadge").textContent); i++) await sleep(500);
+      for (var i = 0; i < 80 && !/21\s*\/\s*21/.test($("fontBadge").textContent); i++) await sleep(500);
       if ($("mathBadge").textContent.indexOf("就绪") < 0) throw new Error($("mathBadge").textContent);
-      if (!/20\/20|20 \/ 20/.test($("fontBadge").textContent)) throw new Error($("fontBadge").textContent);
+      if (!/21\/21|21 \/ 21/.test($("fontBadge").textContent)) throw new Error($("fontBadge").textContent);
       return $("mathBadge").textContent + " · " + $("fontBadge").textContent;
     });
 
     await t("字体下拉：单一「字体」下拉，覆盖全部中文手写字体", function(){
       function opts(id){ return [].map.call($(id).options, function(o){ return o.value; }); }
       var f = opts("fontUnify");
-      /* 11 款内置中文手写字体（含拉丁+数字）必须齐全 */
-      ["zenkurenaido","mplusround","pottaone","zenmaru","yomogi","mashanzheng","kleeone","longcang","zhimangxing","liujianmaocao","kai"].forEach(function(v){
+      /* 12 款内置中文手写字体（含拉丁+数字）必须齐全 */
+      ["lxgw","zenkurenaido","mplusround","pottaone","zenmaru","yomogi","mashanzheng","kleeone","longcang","zhimangxing","liujianmaocao","kai"].forEach(function(v){
         if (f.indexOf(v) < 0) throw new Error("missing " + v); });
       /* 纯拉丁字体不含中文字形 → 不应出现（否则中文会回退成印刷体） */
       ["caveat","patrick","indie","kalam","rocksalt"].forEach(function(v){
         if (f.indexOf(v) >= 0) throw new Error("纯拉丁字体不应出现: " + v); });
-      if (f.length < 11) throw new Error("count " + f.length);
+      if (f.length < 12) throw new Error("count " + f.length);
       return "字体下拉 " + f.length + " 款（均为中英文兼顾）";
     });
 

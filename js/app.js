@@ -5,7 +5,8 @@
 
   /* ================= 字体注册（全部本地文件，零网络） ================= */
   var FONT_FILES = [
-    /* 中文手写（含日文手写体；按数学符号覆盖率排序） */
+    /* 中文手写（LXGW 霞鹜文楷：GB2312 全覆盖，缺字绝不回退印刷体） */
+    { family: "LXGW WenKai",        url: "fonts/LXGWWenKai-Regular.woff2",         weight: "400" },
     { family: "Zen Kurenaido",      url: "fonts/ZenKurenaido-Regular.woff2",        weight: "400" },
     { family: "MPLUSRounded1c",     url: "fonts/MPLUSRounded1c-Regular.woff2",      weight: "400" },
     { family: "PottaOne",           url: "fonts/PottaOne-Regular.woff2",            weight: "400" },
@@ -84,8 +85,8 @@
     pageAnchor: true,         // 多页 PDF/Word：按原文档页码排序布局（块首分页标记承载）
     pageSize: "a4",
     paper: "ruled",
-    fontKey: "zenkurenaido",
-    unifyKey: "zenkurenaido",   // 全篇统一字体：中文/英文/数字/公式同一款
+    fontKey: "lxgw",
+    unifyKey: "lxgw",   // 全篇统一字体：中文/英文/数字/公式同一款（默认霞鹜文楷，全覆盖）
     fontSize: 28,
     lineHeight: 1.9,
     letterSpacing: 0.3,
@@ -359,10 +360,10 @@
       }
       var has = false;
       for (var k = 0; k < sel.options.length; k++) if (sel.options[k].value === current) has = true;
-      sel.value = has ? current : (list[0] ? list[0].key : "zenkurenaido");
+      sel.value = has ? current : (list[0] ? list[0].key : "lxgw");
       return sel;
     }
-    state.unifyKey = state.unifyKey || "zenkurenaido";
+    state.unifyKey = state.unifyKey || "lxgw";
     var uSel = fillUnifySelect(state.unifyKey);
     state.unifyKey = uSel ? uSel.value : state.unifyKey;
     state.fontKey = state.unifyKey;
@@ -775,7 +776,7 @@
   }
 
   /* 首屏优先：默认字体（中/英各一）先加载并渲染，其余字体后台补齐 */
-  var BOOT_FAMILIES = { "Zen Kurenaido": 1, "Caveat": 1 };
+  var BOOT_FAMILIES = { "LXGW WenKai": 1, "Caveat": 1 };
   async function loadBootFonts() {
     var results = [];
     for (var i = 0; i < FONT_FILES.length; i++) {

@@ -5,23 +5,29 @@
 
   /* 字体按语言分组，供界面做二级选择：中文 / 英文 */
   /* 字体按语言分组，供界面做二级选择：中文 / 英文。
-     中文部分按「数学符号覆盖率」排序（实测 59 个符号）：
-       MPLUSRounded1c 55 · ZenKurenaido 52 · PottaOne 46 · ZenMaruGothic 40 · Yomogi 38 · 其余 33–34 */
+     ★ 关键教训：日文手写体（Zen / M PLUS / Yomogi / Klee One / Potta / ZenMaru）
+       普遍缺 **简体字**（实测缺约 1/3 常用字，如「验证导对两边称题」）—— 一旦选中
+       它们，缺字会被浏览器**静默回退成系统印刷体**，同一行里就冒出几个又粗又黑的
+       印刷字（用户多次反馈的「字体有问题」根因）。
+     ⇒ 对策：① 新增 **LXGW WenKai（霞鹜文楷）** 作默认字体 —— 手写楷书、GB2312
+          全覆盖，中英文/数字/公式同一款也不会有字回退；② 给**所有**中文字体的
+          字体栈都补挂 "LXGW WenKai" 兜底 —— 缺字时用手写体补，绝不回退印刷体。 */
   var FONTS = {
-    /* ---------- 中文手写（含日文手写体，符号覆盖更好） ---------- */
-    zenkurenaido: { label: "Zen 圆珠笔手写 ★推荐", css: '"Zen Kurenaido", "KaiTi", cursive', cjk: true, lang: "cjk", family: "Zen Kurenaido" },
-    mplusround:   { label: "M PLUS 圆体（符号最全）", css: '"MPLUSRounded1c", "KaiTi", cursive', cjk: true, lang: "cjk", family: "MPLUSRounded1c" },
-    pottaone:     { label: "Potta 手绘圆体",   css: '"PottaOne", "KaiTi", cursive',        cjk: true, lang: "cjk", family: "PottaOne" },
-    zenmaru:      { label: "Zen 圆体",         css: '"ZenMaruGothic", "KaiTi", cursive',    cjk: true, lang: "cjk", family: "ZenMaruGothic" },
-    yomogi:       { label: "Yomogi 随性手写",  css: '"Yomogi", "KaiTi", cursive',           cjk: true, lang: "cjk", family: "Yomogi" },
-    mashanzheng:  { label: "马善政 毛笔楷书",  css: '"MaShanZheng", "KaiTi", cursive',      cjk: true, lang: "cjk", family: "MaShanZheng" },
-    kleeone:      { label: "Klee One 楷书",    css: '"Klee One", "KaiTi", cursive',         cjk: true, lang: "cjk", family: "Klee One" },
-    longcang:     { label: "龙藏 行草",        css: '"LongCang", "KaiTi", cursive',          cjk: true, lang: "cjk", family: "LongCang" },
-    zhimangxing:  { label: "志莽行书",         css: '"ZhiMangXing", "KaiTi", cursive',       cjk: true, lang: "cjk", family: "ZhiMangXing" },
-    liujianmaocao:{ label: "刘建毛草 狂草",    css: '"LiuJianMaoCao", "KaiTi", cursive',     cjk: true, lang: "cjk", family: "LiuJianMaoCao" },
-    kai:          { label: "系统楷体",         css: '"KaiTi", "SimKai", "Ink Free", cursive', cjk: true, lang: "cjk", family: "KaiTi", sys: true },
+    /* ---------- 中文手写 ---------- */
+    lxgw:         { label: "霞鹜文楷（全覆盖）★推荐", css: '"LXGW WenKai", "KaiTi", cursive', cjk: true, lang: "cjk", family: "LXGW WenKai" },
+    zenkurenaido: { label: "Zen 圆珠笔手写", css: '"Zen Kurenaido", "LXGW WenKai", "KaiTi", cursive', cjk: true, lang: "cjk", family: "Zen Kurenaido" },
+    mplusround:   { label: "M PLUS 圆体（符号最全）", css: '"MPLUSRounded1c", "LXGW WenKai", "KaiTi", cursive', cjk: true, lang: "cjk", family: "MPLUSRounded1c" },
+    pottaone:     { label: "Potta 手绘圆体",   css: '"PottaOne", "LXGW WenKai", "KaiTi", cursive',        cjk: true, lang: "cjk", family: "PottaOne" },
+    zenmaru:      { label: "Zen 圆体",         css: '"ZenMaruGothic", "LXGW WenKai", "KaiTi", cursive',    cjk: true, lang: "cjk", family: "ZenMaruGothic" },
+    yomogi:       { label: "Yomogi 随性手写",  css: '"Yomogi", "LXGW WenKai", "KaiTi", cursive',           cjk: true, lang: "cjk", family: "Yomogi" },
+    mashanzheng:  { label: "马善政 毛笔楷书",  css: '"MaShanZheng", "LXGW WenKai", "KaiTi", cursive',      cjk: true, lang: "cjk", family: "MaShanZheng" },
+    kleeone:      { label: "Klee One 楷书",    css: '"Klee One", "LXGW WenKai", "KaiTi", cursive',         cjk: true, lang: "cjk", family: "Klee One" },
+    longcang:     { label: "龙藏 行草",        css: '"LongCang", "LXGW WenKai", "KaiTi", cursive',          cjk: true, lang: "cjk", family: "LongCang" },
+    zhimangxing:  { label: "志莽行书",         css: '"ZhiMangXing", "LXGW WenKai", "KaiTi", cursive',       cjk: true, lang: "cjk", family: "ZhiMangXing" },
+    liujianmaocao:{ label: "刘建毛草 狂草",    css: '"LiuJianMaoCao", "LXGW WenKai", "KaiTi", cursive',     cjk: true, lang: "cjk", family: "LiuJianMaoCao" },
+    kai:          { label: "系统楷体",         css: '"KaiTi", "SimKai", "LXGW WenKai", "Ink Free", cursive', cjk: true, lang: "cjk", family: "KaiTi", sys: true },
     /* ---------- 中文：系统自带（无需下载，随系统即时可用） ---------- */
-    stxingkai:    { label: "华文行楷（系统）",  css: '"STXingkai", "华文行楷", "KaiTi", cursive', cjk: true, lang: "cjk", family: "STXingkai", sys: true },
+    stxingkai:    { label: "华文行楷（系统）",  css: '"STXingkai", "华文行楷", "LXGW WenKai", "KaiTi", cursive', cjk: true, lang: "cjk", family: "STXingkai", sys: true },
     /* ---------- 英文手写 ---------- */
     caveat:       { label: "Caveat 连笔",     css: '"Caveat", "Segoe Script", cursive', cjk: false, lang: "lat", family: "Caveat" },
     patrick:      { label: "Patrick 工整",    css: '"Patrick Hand", cursive',           cjk: false, lang: "lat", family: "Patrick Hand" },
@@ -51,14 +57,14 @@
   /* ---------- 统一笔迹：全篇同一款手写字体 ----------
    * 中英文 / 数字 / 公式符号都用**同一款**手写字体，只列「中文与拉丁（含数字、
    * 常用数学符号）字形都较全」的字体，避免中英风格割裂。顺序：
-   *   5 款全符号覆盖（含 √ Δ ± ×）→ 其余中文手写（含拉丁+数字）→ 系统楷体。
+   *   LXGW WenKai（全覆盖，默认）→ 其余中文手写 → 系统楷体 / 行楷。
    * 纯拉丁字体不含中文字形，会把中文静默回退成印刷体，故不列入。 */
   var UNIFY_ORDER = [
-    "zenkurenaido", "mplusround", "yomogi", "kleeone", "zenmaru",
+    "lxgw", "zenkurenaido", "mplusround", "yomogi", "kleeone", "zenmaru",
     "pottaone", "mashanzheng", "longcang", "zhimangxing", "liujianmaocao",
     "kai", "stxingkai"
   ];
-  var UNIFY_DEFAULT = "zenkurenaido";
+  var UNIFY_DEFAULT = "lxgw";
   /* 「统一笔迹」字体下拉：全部可用（含用户自定义）；按 UNIFY_ORDER 排序。 */
   function fontsForUnify() {
     var out = [], seen = {};
@@ -98,7 +104,7 @@
     var cjk = U.isCJK(ch);
     var key = fontKeyFor(ch, s);
     var f = FONTS[key];
-    if (!f) f = FONTS[cjk ? 'zenkurenaido' : 'caveat'];
+    if (!f) f = FONTS[cjk ? 'lxgw' : 'caveat'];
     return { css: f.css, cjk: cjk, key: key };
   }
 
@@ -178,7 +184,7 @@
    * 都不含该字符时，mathrender 会保留 MathJax 原字形（内容绝不丢失）。
    * 注意：早期版本只挂中文字体链，导致「换英文字体时公式纹丝不动」。 */
   var LATIN_FALLBACK = ["Caveat", "Patrick Hand", "Indie Flower", "Kalam", "Shadows Into Light", "Architects Daughter", "Gloria Hallelujah", "Reenie Beanie", "Rock Salt"];
-  var CJK_FALLBACK = ["MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
+  var CJK_FALLBACK = ["LXGW WenKai", "MPLUSRounded1c", "Zen Kurenaido", "PottaOne", "ZenMaruGothic", "Yomogi", "Klee One", "MaShanZheng", "LongCang", "ZhiMangXing", "LiuJianMaoCao"];
   function mathFontsOf(s) {
     var uk = unifyKeyOf(s);
     var fam = (FONTS[uk] || FONTS[UNIFY_DEFAULT] || {}).family;
