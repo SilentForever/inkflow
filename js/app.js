@@ -784,10 +784,11 @@
     }
     return results;
   }
-  async function loadRemainingFonts() {
-    for (var i = 0; i < FONT_FILES.length; i++) {
-      if (!BOOT_FAMILIES[FONT_FILES[i].family]) await loadFontEntry(FONT_FILES[i]);
-    }
+  /* 显式加载全部字体（供「字体下拉逐款预览」或测试在需要时调用；首访不自动跑） */
+  async function ensureAllFonts() {
+    var results = [];
+    for (var i = 0; i < FONT_FILES.length; i++) results.push(await loadFontEntry(FONT_FILES[i]));
+    return results;
   }
 
   /* ================= 启动 ================= */
@@ -817,10 +818,8 @@
     updateCounts();
     scheduleRender(true);
 
-    /* 2) 首屏已出：其余字体后台补齐，补齐后重绘一次（非默认字体即时可用） */
-    loadRemainingFonts().then(function () {
-      if (state.unifyKey && !BOOT_FAMILIES[state.unifyKey]) scheduleRender(true);
-    });
+    /* 2) 其余字体不再后台全量预取：字体下拉选到哪款再按需加载（省带宽、更快首屏）。
+       首访只下载默认中英各一款，避免一次性拉取 21 款（约 22MB）→ 触发浏览器「慢网络」告警。 */
   }
 
   function waitForMathJax(timeoutMs) {
@@ -840,7 +839,7 @@
     });
   }
 
-  global.InkApp = { state: state, toSettings: toSettings, doRender: doRender, regenerate: regenerate, scheduleRender: scheduleRender, registerFonts: registerFonts, setFontBase: setFontBase, loadDocText: loadDocText, boot: boot };
+  global.InkApp = { state: state, toSettings: toSettings, doRender: doRender, regenerate: regenerate, scheduleRender: scheduleRender, registerFonts: registerFonts, ensureAllFonts: ensureAllFonts, setFontBase: setFontBase, loadDocText: loadDocText, boot: boot };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })(typeof window !== "undefined" ? window : this);

@@ -124,7 +124,14 @@ index.html  css/  js/  fonts/  vendor/  vercel.json
 **Q：字体 22MB（WOFF2 压缩后）会不会超限？**
 不会。Vercel 单次部署体积上限远大于此；且 `vercel.json` 已给 `/fonts`、`/vendor` 设了 7 天缓存，
 首访之后不再重复下载。字体已全部转为 **WOFF2**（整包 47MB → 22MB），且**首屏只加载默认中英各一款（约 1.6MB）**，
-其余字体后台补齐；PDF / Word / OCR 等重型组件按需加载。
+**其余字体按需加载**（字体下拉选到哪款才下载，首访不再一次性拉全部 21 款）；PDF / Word / OCR 等重型组件同样按需加载。
+实测首访总下载量由 **≈24.6MB 降至 ≈3.9MB（-84%）**，且不再触发浏览器「Slow network / 回退字体」告警。
+
+**Q：图片 OCR 首次为什么有时较慢？**
+OCR 组件（`vendor/tesseract.min.js` + `vendor/worker.min.js` + 核心 wasm + `chi_sim/eng` 语言包，共约 8MB）
+全部**按需加载**：只在点「识别图片」时才下载，所以首访不受影响。首次识别约 1–2 秒（本地实测 ~0.6s），
+之后同一会话复用已初始化的 worker。**注意**：`workerPath` 必须指向**专用的 `vendor/worker.min.js`**
+（不是主 bundle `tesseract.min.js`）—— 指错会让 Worker 永远起不来、界面表现为「一直卡住」。
 
 **Q：还需要保留 `file://` 双击运行的能力吗？**
 需要，且**已保留**：项目没有任何 ES Module 与运行时 fetch，双击 `index.html` 依然可用。

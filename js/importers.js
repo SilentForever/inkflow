@@ -297,7 +297,7 @@
       if (!global.Tesseract) throw new Error("OCR 组件未就绪");
       setStatus("正在初始化 OCR（首次较慢）…", "busy", true);
       return global.Tesseract.createWorker(["chi_sim", "eng"], 1, {
-        workerPath: BASE + "vendor/tesseract.min.js",
+        workerPath: BASE + "vendor/worker.min.js",
         corePath: BASE + "vendor/",
         langPath: BASE + "vendor/tessdata",
         cacheMethod: "none",

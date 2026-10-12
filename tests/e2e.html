@@ -398,12 +398,19 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
       return "zenkurenaido / 28px / 1.9 / 50%";
     });
 
-    await t("徽标：公式引擎就绪 + 字体 21/21", async function(){
-      /* 字体分批加载：等后台补齐（默认字体先到，其余随后） */
-      for (var i = 0; i < 80 && !/21\s*\/\s*21/.test($("fontBadge").textContent); i++) await sleep(500);
+    await t("字体：首屏只加载默认款（不预取全部），按需加载后可齐全", async function(){
+      /* 首屏只加载默认中英各一款（LXGW + Caveat 常规/粗体 = 3 款）→ 徽标远小于 21，不再首访拉 21 款 */
+      await sleep(1500);
+      var bootTxt = $("fontBadge").textContent;
+      var m = bootTxt.match(/(\d+)\s*\/\s*21/);
+      if (!m) throw new Error("徽标格式异常：" + bootTxt);
+      if (Number(m[1]) >= 21) throw new Error("首屏不应预取全部字体：" + bootTxt);
       if ($("mathBadge").textContent.indexOf("就绪") < 0) throw new Error($("mathBadge").textContent);
-      if (!/21\/21|21 \/ 21/.test($("fontBadge").textContent)) throw new Error($("fontBadge").textContent);
-      return $("mathBadge").textContent + " · " + $("fontBadge").textContent;
+      /* 显式加载全部字体（模拟逐款预览 / 测试需要）→ 21/21 */
+      await InkApp.ensureAllFonts();
+      for (var j = 0; j < 40 && !/21\s*\/\s*21/.test($("fontBadge").textContent); j++) await sleep(250);
+      if (!/21\/21|21 \/ 21/.test($("fontBadge").textContent)) throw new Error("按需加载后：" + $("fontBadge").textContent);
+      return "首屏 " + bootTxt + " → 按需加载后 " + $("fontBadge").textContent;
     });
 
     await t("字体下拉：单一「字体」下拉，覆盖全部中文手写字体", function(){
@@ -421,13 +428,13 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
 
     await t("字体：换字体改变输出（全篇同一款）", async function(){
       $("fontUnify").value = "zenkurenaido"; $("fontUnify").dispatchEvent(new Event("change", {bubbles:true}));
-      await sleep(1400);
+      await sleep(2000);
       var a = hashAll(document.querySelector("canvas"));
       $("fontUnify").value = "mashanzheng"; $("fontUnify").dispatchEvent(new Event("change", {bubbles:true}));
-      await sleep(1600);
+      await sleep(2400);
       var b = hashAll(document.querySelector("canvas"));
       $("fontUnify").value = "zenkurenaido"; $("fontUnify").dispatchEvent(new Event("change", {bubbles:true}));
-      await sleep(1200);
+      await sleep(2000);
       if (a === b) throw new Error("换字体未改变输出");
       return "zenkurenaido → mashanzheng → 输出不同";
     });
@@ -597,15 +604,16 @@ HTMLAnchorElement.prototype.dispatchEvent = function(ev){ if (this.download) win
     });
 
     await t("交互：全部字体逐一渲染", async function(){
+      await InkApp.ensureAllFonts();   /* 按需模式下先备齐，逐款切换才测的是真字体 */
       var fonts = [].map.call($("fontUnify").options, function(o){ return o.value; });
       for (var i=0;i<fonts.length;i++){
         $("fontUnify").value = fonts[i]; $("fontUnify").dispatchEvent(new Event("change", {bubbles:true}));
-        await sleep(420);
+        await sleep(600);
         var cv = document.querySelector("canvas");
         if (!cv || inkOf(cv) < 15) throw new Error("blank for " + fonts[i]);
       }
       $("fontUnify").value = "zenkurenaido"; $("fontUnify").dispatchEvent(new Event("change", {bubbles:true}));
-      await sleep(400);
+      await sleep(600);
       return fonts.length + " 种全部成功";
     });
 

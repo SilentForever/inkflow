@@ -20,6 +20,9 @@ const SUITES = {
   unit: { page: "tests/run-tests.html", marker: "RESULTS_JSON:", budget: 120000, label: "单元 / 集成" },
   acc:  { page: "tests/accuracy.html",  marker: "ACC_JSON:",     budget: 200000, label: "准确率审计" },
   e2e:  { page: "tests/e2e.html",       marker: "E2E_JSON:",     budget: 200000, label: "端到端 UI" },
+  /* OCR 需要 http(s) 环境（Worker 限制）→ 交给专用 runner（自起静态服务器 + CDP），
+     不能像上面三套那样直接 file:// dump-dom。 */
+  ocr:  { runner: "tests/ocr-runner.js", marker: "OCR_JSON:", label: "图片 OCR" },
 };
 
 function findChrome() {
@@ -69,8 +72,26 @@ function extractJson(html, marker) {
   }
 }
 
+function runRunner(chrome, key) {
+  const s = SUITES[key];
+  const runner = path.join(ROOT, s.runner);
+  const r = spawnSync(process.execPath, [runner], {
+    cwd: ROOT, encoding: "utf8", timeout: 300000,
+    env: Object.assign({}, process.env, { CHROME: chrome }),
+  });
+  const out = (r.stdout || "") + (r.stderr || "");
+  const j = extractJson(out, s.marker);
+  if (!j) return { key, label: s.label, ok: false, err: "未解析到 " + s.marker + "（runner 可能超时）", total: 0, pass: 0, fail: 0 };
+  const total = j.total != null ? j.total : 1, pass = j.pass ? 1 : 0, fail = j.pass ? 0 : 1;
+  const extra = [];
+  if (j.ocr) extra.push("OCR 识别到「" + String(j.ocr.head || "").replace(/\n/g, " / ").slice(0, 24) + "」");
+  if (j.errors && j.errors.length) extra.push("err: " + String(j.errors[0]).slice(0, 80));
+  return { key, label: s.label, ok: !!j.pass, total, pass, fail, extra: extra.join("  ") };
+}
+
 function runSuite(chrome, key) {
   const s = SUITES[key];
+  if (s.runner) return runRunner(chrome, key);
   const url = "file:///" + path.join(ROOT, s.page).replace(/\\/g, "/");
   fs.mkdirSync(TMP, { recursive: true });
   const outFile = path.join(TMP, key + ".html");
