@@ -31,6 +31,7 @@
 - 字号百分比要 **clamp**（如 0.5–2.4）并设上限，防个别超大标题把版面撑爆。
 
 ## 字体
+- **「手写字体」≠「覆盖所有简体字」**：日文手写体（Zen/M PLUS/Yomogi/KleeOne/Potta/ZenMaru）普遍缺约 1/3 常用简体字（如「验证导对两边称题」），canvas 缺字会被浏览器**静默回退到系统楷体**（Windows 上渲染成粗黑印刷体），同一行冒出一批粗黑字。**根治办法 = CSS 字体栈原生回退**（给每款中文字体补挂一款全覆盖手写体兜底，现用霞鹜文楷 `LXGW WenKai`），**不要用 JS 逐字检测**——`measureText` 宽度启发式对全宽 CJK 字形**永远判「缺」**（字形与回退族同宽）。选默认字体时**覆盖率优先于风格**。定位手段：fontTools 读 cmap 查缺字 + 墨迹密度像素实测（回退字密度是邻字 1.3~1.9×），不靠 vision 目测。
 - **分批加载后选非默认字体不生效**：`boot()` 后台补齐回调曾用错键名 `state.fontCJK`（真名 `state.fontKeyCJK`）→ 条件永假不重绘，选到未加载字体就画成回退字体。改键名后修复。
 - **按需加载**：字体下拉 `pickFont()` 选到未加载字体时先 `await loadFontFamily(fam)` 再重绘，不要假设全部字体首屏已就绪。
 - **`document.fonts.check("16px X")` 不可靠**（对未注册家族也返回 true）；要枚举用 `Array.from(document.fonts).map(f=>f.family+"/"+f.status)`（`[].map.call` 对 FontFaceSet 无效，它没有 `length`）。**可靠的存在性探测**：把族名与 `monospace`/`sans-serif` 并排测量同串文本，两者宽度都与通用族完全一致 ⇒ 未安装（见 `fontAvailable`）。

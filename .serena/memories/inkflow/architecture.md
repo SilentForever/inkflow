@@ -9,7 +9,7 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 
 ## 加载提速（首屏关键）
 - 字体已转 **WOFF2**（`tools/ttf2woff2.py`，需 fontTools+brotli）：fonts/ 47MB → **20.8MB**。
-- `js/app.js` 的 `registerFonts` 拆分：`loadBootFonts()` 先加载默认中/英各一款（Zen Kurenaido + Caveat，约 1.4MB）→ 出首屏 → `loadRemainingFonts()` 后台补齐，补齐后按需重绘。字体徽标 `#fontBadge` 显示已加载数 `n/20`。
+- `js/app.js` 的 `registerFonts` 拆分：`loadBootFonts()` 先加载默认中/英各一款（LXGW WenKai + Caveat，约 1.6MB）→ 出首屏 → `loadRemainingFonts()` 后台补齐，补齐后按需重绘。字体徽标 `#fontBadge` 显示已加载数 `n/21`。
 - 首屏关键资源：`index.html + css + 轻量本地 JS + MathJax + 1.4MB 字体`。
 
 ## 公式手写化（核心：js/mathrender.js 的 InkMath）
@@ -22,12 +22,13 @@ Markdown+LaTeX → `js/parser.js` → `js/renderer.js` 行布局 → 手写化 �
 - **`clearCache()` 现同时清 `_cov`（字形覆盖探测缓存）**；`InkApp.registerFonts()` 结束后调用它。否则字体加载前渲染的公式会被 `_cov` 永久缓存成印刷体（换字体也不重算）。
 
 ## 字体
-- **20 款内置（11 中文 + 9 英文）**，`fonts/` 为 WOFF2，共约 20.8MB。**默认 `Zen Kurenaido`**（全篇统一一款）。
+- **21 款内置（12 中文 + 9 英文）**，`fonts/` 为 WOFF2，共约 22MB。**默认 `霞鹜文楷 LXGW WenKai`**（全篇统一一款；手写楷书、GB2312 全覆盖、中英文/数字/公式同一款也不回退印刷体）。
+- **所有中文字体的字体栈末尾都补挂 `"LXGW WenKai"` 兜底**（`renderer.js` 的 `FONTS[].css`）：日文手写体（Zen/M PLUS/Yomogi/KleeOne/Potta/ZenMaru）普遍缺约 1/3 常用简体字（如「验证导对两边称题」），缺字会被浏览器**静默回退成系统印刷黑体**。靠 CSS 字体栈原生回退解决，**不要用 JS `hasGlyph` 检测**（`measureText` 宽度启发式对全宽 CJK 字形永远判「缺」，见 `mem:inkflow/pitfalls`）。
 - **全篇统一字体（`state.unifyKey`）**：工具栏只有一个「字体」下拉，选一款即**中文 / 英文 / 数字 / 公式符号都用同一款**。`renderer` 的 `unifyKeyOf(s)`（`s.unifyKey` 若有效，否则 `UNIFY_ORDER` 首个存在款 / `UNIFY_DEFAULT`）+ `fontKeyFor(ch,s)` 决定字符字体键；`mathFontsOf` 把该款放字体链最前。UI 见左栏第 1 行 `#fontUnify`（`fontsForUnify()` 填充，**只列中英文兼顾的字体**——纯拉丁字体不含中文字形，会把中文回退成印刷体）。`toSettings` 传 `fontKey`/`unify:true`/`unifyKey`，`hashSettings` 纳入二者。**字号仍按原文层级**（`factor(b)` 不受影响）。
-- 字体文件清单：`js/app.js` 的 `FONT_FILES`（20 条，`url` 均为 `*.woff2`）；字体定义：`js/renderer.js` 的 `FONTS`。
+- 字体文件清单：`js/app.js` 的 `FONT_FILES`（21 条，`url` 均为 `*.woff2`）；字体定义：`js/renderer.js` 的 `FONTS`。**`FONT_FILES` 首位与 `BOOT_FAMILIES` 均为 `LXGW WenKai`**（首屏即加载全覆盖手写体）。
 - **系统手写字体**（`FONTS` 里标 `sys:true`，`family` 为本机字族名，不打包）：英文 `Segoe Script`、`Segoe Print`、`Comic Sans MS`、`Gabriola`、`Ink Free`；中文 `华文行楷(STXingkai)`、`系统楷体(KaiTi)`。**下拉会隐藏本机没装的系统字体**（`fontsForUnify` 里 `sys && !fontAvailable(family)` 跳过），避免"选了没反应"的静默回退。`fontAvailable(family)`：族名与 `monospace`/`sans-serif` 并排测量同串文本，两者宽度都与通用族完全一致 ⇒ 未安装。
 - **字体按需加载**：`loadFontFamily(family)` 按 family 找到 `FONT_FILES` 条目并 `loadFontEntry`；系统字体返回 null（无需加载）。「字体」下拉选到**尚未加载**的字体时先 `await loadFontFamily` 再 `scheduleRender(true)`。`registerFonts()`/`loadBootFonts()` 用 `_hasFamily(fam)`（前缀匹配）判重。
-- 本机实测「字体」下拉：11 款内置中文手写（华文行楷未装被隐藏；M PLUS/Zen/Yomogi/KleeOne/ZenMaru 连 `√Δ±×` 都覆盖）。纯拉丁 9 款不进该下拉（缺中文字形会回退印刷体）。
+- 本机实测「字体」下拉：12 款内置中文手写（华文行楷未装被隐藏；LXGW WenKai 全覆盖；M PLUS/Zen/Yomogi/KleeOne/ZenMaru 连 `√Δ±×` 都覆盖）。纯拉丁 9 款不进该下拉（缺中文字形会回退印刷体）。
 
 ## 左栏（导入面板：空态卡片 ↔ 文档列表 + WPS 式工具栏）
 顶部工具栏（对应 WPS「开始」选项卡）**分两行**、分组排布，窄栏也不溢出：
